@@ -1,0 +1,12 @@
+# Foundry
+out/
+cache/
+broadcast/
+
+# Local credentials and environment
+.env
+.env.*
+!.env.example
+
+# JavaScript tooling, if added
+node_modules/
