@@ -22,7 +22,7 @@ If the transfer went to a different address, the result should be `NOT_VERIFIED`
 
 Veridra is scoped to facts that can be tied to the selected chain evidence. A ledger result does not by itself establish who controlled a wallet, whether an invoice was legally satisfied, or whether goods or services were delivered. A claim can only be checked to the extent that the transaction data and the chosen evidence source support it.
 
-The Level 1 contract core is implemented and compiles with Solidity 0.8.24 using the repository's `via_ir` setting. This checkout has no RPC client, executable end-to-end flow, deployed endpoint, or test results to report. See the [technical design and open decisions](TECHNICAL_README.md).
+The Level 1 contract core compiles with Solidity 0.8.24 using the repository's `via_ir` setting. An offchain TypeScript module now acquires bounded RPC evidence; the publisher CLI/transaction flow, tests, and deployment are still pending. See the [technical design and open decisions](TECHNICAL_README.md).
 
 The first evidence path is deliberately scoped: Level 1 uses RPC-acquired evidence with explicit source attribution. Its receipt does not claim trustlessness. Later levels strengthen how the same evidence is authenticated, without changing what a payment claim means. The [architecture decision record](docs/ARCHITECTURE_FRACTURE.md) explains the progression and its limits.
 
@@ -56,6 +56,7 @@ The claim comparison stays stable as evidence authentication improves. Each rece
 ```text
 veridra/
 ├── src/                  # Solidity adjudicator and immutable receipt registry
+├── offchain/src/         # Bounded Monad JSON-RPC evidence acquisition
 ├── foundry.toml          # Solidity 0.8.24 / Monad Testnet RPC profile
 ├── README.md             # English project overview
 ├── README_ES.md          # Spanish adaptation
@@ -66,6 +67,6 @@ There is no runnable end-to-end command yet, and no testnet or mainnet deploymen
 
 ## Current evidence
 
-The product direction adapts PROOF's useful semantics—explicit claims, `PASS` / `FAIL` / `ABSTAIN`, and distinct overall verdicts—to EVM transaction evidence. Veridra is a Solidity implementation, not a source-code port. The contracts compile, but runtime behavior and RPC extraction have not yet been independently verified.
+The product direction adapts PROOF's useful semantics—explicit claims, `PASS` / `FAIL` / `ABSTAIN`, and distinct overall verdicts—to EVM transaction evidence. Veridra is a new Solidity and TypeScript implementation, not a source-code port. Solidity compilation and TypeScript type checking have been run; runtime behavior, RPC response handling, end-to-end submission, and deployment have not been verified.
 
 For architecture, threat boundaries, design choices, and falsifiers, see the **[Technical README](TECHNICAL_README.md)**.

@@ -22,7 +22,7 @@ Si la transferencia fue a otra dirección, el resultado debería ser `NOT_VERIFI
 
 Veridra se limita a hechos que puedan vincularse con la evidencia de la cadena seleccionada. El resultado del ledger no establece por sí solo quién controlaba una wallet, si una factura quedó legalmente saldada ni si se entregaron bienes o servicios. Una afirmación solo puede verificarse hasta donde lo permitan los datos de la transacción y la fuente de evidencia elegida.
 
-El núcleo de contratos del Nivel 1 está implementado y compila con Solidity 0.8.24 usando la configuración `via_ir` del repositorio. Este checkout todavía no tiene cliente RPC, flujo end-to-end ejecutable, endpoint desplegado ni resultados de pruebas. Consulta el [diseño técnico y las decisiones abiertas](TECHNICAL_README.md).
+El núcleo de contratos del Nivel 1 compila con Solidity 0.8.24 usando la configuración `via_ir` del repositorio. Un módulo offchain en TypeScript ya adquiere evidencia RPC acotada; todavía falta el CLI/flujo de publicación, las pruebas y el despliegue. Consulta el [diseño técnico y las decisiones abiertas](TECHNICAL_README.md).
 
 El primer camino de evidencia tiene un alcance deliberado: el Nivel 1 usa evidencia obtenida por RPC y atribuye explícitamente su fuente. El recibo no afirma que sea trustless. Los niveles posteriores fortalecen la autenticación de esa misma evidencia sin cambiar el significado de una afirmación de pago. El [registro de decisiones arquitectónicas](docs/ARCHITECTURE_FRACTURE.md) explica la progresión y sus límites.
 
@@ -53,7 +53,7 @@ La comparación de afirmaciones permanece estable mientras mejora la autenticaci
 
 ## Estado actual
 
-La dirección de producto adapta semánticas útiles de PROOF —afirmaciones explícitas, `PASS` / `FAIL` / `ABSTAIN` y veredictos generales distintos— a evidencia de transacciones EVM. Veridra se implementa en Solidity; no es un port del código fuente. Los contratos compilan, pero su comportamiento en ejecución y la extracción RPC todavía no se verificaron de forma independiente.
+La dirección de producto adapta semánticas útiles de PROOF —afirmaciones explícitas, `PASS` / `FAIL` / `ABSTAIN` y veredictos generales distintos— a evidencia de transacciones EVM. Veridra se implementa en Solidity y TypeScript; no es un port del código fuente. Se ejecutaron la compilación Solidity y el chequeo de tipos TypeScript; todavía no se verificaron el comportamiento en ejecución, las respuestas RPC, la publicación end-to-end ni el despliegue.
 
 Los montos son enteros exactos en la unidad mínima del activo. No se usa aritmética de punto flotante.
 

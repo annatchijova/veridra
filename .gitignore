@@ -8,5 +8,6 @@ broadcast/
 .env.*
 !.env.example
 
-# JavaScript tooling, if added
+# JavaScript tooling
 node_modules/
+offchain/dist/

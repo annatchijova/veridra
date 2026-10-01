@@ -62,7 +62,7 @@ Accept one Monad transaction hash and explicit assertions about one supported di
 
 **Trust boundary:** the contract does not call an RPC or authenticate the publisher/provider. The publisher supplies normalized facts, raw-payload digests, provider identity, and its finality-policy observations. The contract deterministically compares and records those inputs; it cannot prove those inputs came from the named RPC. The finality fields are publisher assertions, not an onchain confirmation check. The receipt is an immutable record of that publisher's submission and the contract's comparison.
 
-**Complete when:** the offchain Monad RPC client checks chain ID and cross-consistency among transaction, receipt, and containing block; native MON and direct ERC-20 extraction each have explicit rules; unsupported, ambiguous, and non-final evidence fail closed; the raw transaction/receipt/log payloads can be reconstructed and matched to the recorded digests; and an independent consumer can read and check the versioned receipt. Reorganization/finality policy, token identity, and RPC trust limits must be specified. This level does not infer invoice references, contract-internal transfer semantics, identity, or delivery.
+**Complete when:** the Monad RPC producer, publisher flow, and receipt consumer operate together; cross-consistency among transaction, receipt, and containing block is checked; native MON and allowlisted-token extraction follow the rules above; unsupported or ambiguous evidence fails closed; the RPC result objects can be canonically serialized and matched to their recorded digests; and an independent consumer can read and check the versioned receipt. Reorganization/finality policy, token identity, and RPC trust limits must be specified. This level does not infer invoice references, arbitrary token semantics, identity, or delivery.
 
 ### Level 2 — Recent inclusion-proof receipt
 
@@ -130,21 +130,23 @@ flowchart LR
     J --> R
 ```
 
-The offchain acquisition and extraction flow remains planned. The current Solidity contracts implement only deterministic adjudication over publisher-supplied normalized facts and immutable receipt recording; they do not fetch or authenticate RPC data.
+`offchain/src/rpcEvidence.ts` implements bounded JSON-RPC acquisition and extraction for a single payment fact. The current Solidity contracts implement deterministic adjudication over normalized facts and immutable receipt recording; they do not fetch RPC data or authenticate the provider response. No publisher CLI currently connects these components.
 
 ### Level 1 component boundary
 
 Level 1 needs an offchain RPC client plus transaction extraction, deterministic adjudication, and receipt serialization. The current contract adds two narrower properties: it applies the same fixed claim comparisons onchain and preserves the publisher's versioned submission in immutable storage. It does not make the RPC answer more authentic. The single immutable publisher is a product trust authority; key rotation or multi-publisher policy requires a versioned design rather than silently widening this contract.
 
-The planned RPC acquisition sequence is:
+The TypeScript acquisition sequence is:
 
 1. Read `eth_chainId` and compare it with the configured Monad network.
 2. Fetch `eth_getTransactionByHash` and `eth_getTransactionReceipt` for the requested hash.
 3. Fetch the receipt's containing block with `eth_getBlockByNumber` and check that transaction, receipt, and block agree on transaction hash, block number, and block hash.
 4. Apply the declared finality/reorganization policy before returning a usable result. Null, inconsistent, unsupported, or not-yet-final evidence yields `INSUFFICIENT_EVIDENCE`; a successfully acquired receipt with failed execution contradicts a claim that the payment succeeded and yields `NOT_VERIFIED`.
-5. Extract only the explicitly supported facts, compare exact integer values against the bounded claim, and serialize the versioned receipt with the source label and observation context.
+5. Extract exactly one supported fact: either a successful top-level native MON value transfer with an empty input field, or one standard `Transfer` event from an explicitly configured token address that is also the transaction's direct target. A transaction with no supported fact, multiple supported facts, or a `Transfer` event from an unconfigured token returns `INSUFFICIENT_EVIDENCE`. Native evidence records the transaction's top-level `from`, `to`, and `value`; it does not establish the recipient's net balance change. Token symbols and decimals are not used. The token allowlist is an operator policy; it does not prove that a token contract obeys ERC-20 semantics or that its event reflects recipient balance changes.
 
-The source identifier must be safe to publish: never put API keys or bearer credentials in a receipt. `observed_at` is the verifier host's observation time, not a consensus timestamp. Raw token addresses are identifiers; symbols and decimals must not be trusted from arbitrary RPC responses. A matching ERC-20-shaped `Transfer` log is not sufficient by itself to establish arbitrary token balance semantics. The supported token policy remains an open decision; do not broaden a token claim based only on a display symbol or event signature.
+The adapter returns exact `bigint` values for chain IDs, amounts, block counts, timestamps, and confirmation depths. Token amounts are in base units; display decimals are outside adjudication. No float enters the decision path. Future ratios must use exact numerator/denominator values with explicit rounding rules.
+
+The source identifier must be safe to publish: never put API keys or bearer credentials in a receipt. `observed_at` is supplied as a canonical unsigned decimal string and is the verifier host's observation time, not a consensus timestamp. The adapter canonicalizes each JSON-RPC result object by sorting object keys and hashes its UTF-8 JSON with Ethereum Keccak-256. These are digests of normalized parsed RPC objects, not raw HTTP byte transcripts. A matching ERC-20-shaped `Transfer` log is not sufficient by itself to establish arbitrary token balance semantics; the initial adapter only accepts configured token addresses and still inherits those contracts' semantics and the RPC's honesty.
 
 The contract receipt is an immutable record of publisher-supplied facts and deterministic comparisons, not a cryptographic proof of the RPC's honesty. The contract stores digests of the transaction, receipt, and logs; the raw payloads remain necessary offchain to inspect or reproduce those digests. A hash or integrity seal cannot upgrade `RPC_ATTESTED` into consensus authentication.
 
@@ -183,7 +185,7 @@ These are shared requirements. The adjudicator represents the scoped-check behav
 
 The fail-closed requirement is falsified if missing, unsupported, malformed, or invalid evidence yields a non-insufficient verdict. The scoping requirement is falsified if an omitted claim field is represented as a passing check. The assurance label is falsified if a receipt claims a stronger authentication mechanism than the verifier actually checked. A `VERIFIED / RPC_ATTESTED` result is falsified when the claim does not match the evidence returned by its declared source; it does not independently attest that source's honesty.
 
-The Solidity contracts compile with solc 0.8.24, optimizer enabled, and `viaIR: true`, matching the repository's Foundry configuration. No tests, RPC client, executable end-to-end demo, or deployment have been verified. Compilation establishes syntax/type/code-generation success only; it does not establish runtime correctness or the truth of publisher-supplied evidence.
+The Solidity contracts compile with solc 0.8.24, optimizer enabled, and `viaIR: true`, matching the repository's Foundry configuration. The TypeScript source type-checks with strict mode and viem 2.57.2, pinned with a committed lockfile. `npm ci --ignore-scripts` succeeded, and `npm audit` reported no known advisories in the resolved tree. No tests, live RPC integration run, executable end-to-end submission, or deployment have been verified. Compilation and type checking establish syntax/type/code-generation success only; they do not establish runtime correctness or the truth of publisher-supplied evidence.
 
 ### Initial adversarial review of Level 1 contracts
 
