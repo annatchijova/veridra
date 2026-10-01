@@ -24,20 +24,23 @@ Veridra se limita a hechos que puedan vincularse con la evidencia de la cadena s
 
 El producto todavía no está implementado. Este checkout no contiene contratos Solidity, una demo ejecutable, un endpoint desplegado ni resultados de pruebas. Consulta el [diseño técnico y las decisiones abiertas](TECHNICAL_README.md).
 
+El primer camino de evidencia tiene un alcance deliberado: el Nivel 1 usa evidencia obtenida por RPC y atribuye explícitamente su fuente. El recibo no afirma que sea trustless. Los niveles posteriores fortalecen la autenticación de esa misma evidencia sin cambiar el significado de una afirmación de pago. El [registro de decisiones arquitectónicas](docs/ARCHITECTURE_FRACTURE.md) explica la progresión y sus límites.
+
 ## Destino y niveles
 
-El destino es un servicio de verificación que comercios, marketplaces y agentes automatizados puedan usar para contrastar una afirmación de pago con evidencia autenticada de Monad y recibir un resultado reproducible cuyo alcance esté claramente delimitado. El proyecto avanzará hacia ese destino en niveles completos:
+El destino es un servicio de verificación que comercios, marketplaces y agentes automatizados puedan usar para contrastar una afirmación de pago con evidencia de Monad y conocer explícitamente su nivel de garantía, junto con un resultado reproducible y de alcance delimitado. El proyecto avanzará hacia ese destino en niveles completos:
 
 | Nivel | Estado del producto |
 |---|---|
-| 1 | Verificar una afirmación sobre un pago Monad soportado; al principio, una transferencia directa de MON nativo o de un token ERC-20. Las formas de transacción no soportadas producen evidencia insuficiente. |
-| 2 | Emitir un recibo de evidencia versionado que otro verificador pueda comprobar de forma independiente, incluida la fuente de evidencia y el alcance exacto del resultado. |
-| 3 | Permitir que quien paga o recibe registre una expectativa de pago autorizada antes de la liquidación, para vincular una referencia o fecha límite con evidencia previa en vez de inferirla de una transferencia. |
-| 4 | Ofrecer a un comercio o marketplace concreto una API y un flujo de usuario para consumir recibos de forma segura, incluyendo solicitudes duplicadas y reorganizaciones de la cadena. |
-| 5 | Ampliar las formas de transacción y la comparación de disputas solo cuando se pueda reconstruir cada transferencia soportada y limitar cada resultado a su evidencia. |
-| 6 (opcional) | Ofrecer un recibo privado solo si un usuario real necesita demostrar una policy sobre términos comerciales privados sin revelarlos, y una prueba ZK oculta información adicional a la que ya expone el ledger público. |
+| 1 | Verificar una afirmación sobre un pago Monad soportado usando evidencia RPC con atribución explícita. El recibo identifica proveedor/fuente y contexto de observación; no afirma autenticación histórica trustless. |
+| 2 | Emitir un recibo de evidencia portátil y versionado, y comprobar de forma independiente la inclusión reciente de transacción/receipt contra `BLOCKHASH`, mientras el bloque siga dentro de la ventana de 256 bloques. |
+| 3 | Preservar la verificación histórica con una fuente persistente de raíces autenticadas, como un light client, oracle o mecanismo de checkpoints con supuestos de confianza explícitos. |
+| 4 | Permitir que quien paga o recibe registre una expectativa de pago autorizada antes de la liquidación, para vincular una referencia o fecha límite con evidencia previa en vez de inferirla de una transferencia. |
+| 5 | Ofrecer a un comercio o marketplace concreto una API y un flujo de usuario para consumir recibos de forma segura, incluyendo solicitudes duplicadas y reorganizaciones de la cadena. |
+| 6 | Ampliar las formas de transacción y la comparación de afirmaciones solo cuando se pueda reconstruir cada transferencia soportada y limitar cada resultado a su evidencia. |
+| 7 (opcional) | Ofrecer un recibo privado solo si un usuario real necesita demostrar una policy sobre términos comerciales privados sin revelarlos, y una prueba ZK oculta información adicional a la que ya expone el ledger público. |
 
-Cada nivel debe ser útil por sí mismo e incluir las reglas de integridad, autoridad y manejo de errores que necesita el destino. Si se acaba el tiempo del hackathon, el proyecto se detendrá en el nivel completo más alto alcanzado, en lugar de entregar versiones más débiles de los niveles intentados. El nivel 6 puede omitirse sin afectar la receipt normal. El [Technical README](TECHNICAL_README.md) describe los límites entre niveles y sus invariantes compartidos.
+Cada nivel debe ser útil por sí mismo e incluir las reglas de integridad, autoridad y manejo de errores que necesita el destino. Si se acaba el tiempo del hackathon, el proyecto se detendrá en el nivel completo más alto alcanzado, en lugar de entregar versiones más débiles de los niveles intentados. El nivel privado opcional (7) puede omitirse sin afectar el recibo normal. El [Technical README](TECHNICAL_README.md) describe los límites entre niveles y sus invariantes compartidos.
 
 ## Flujo previsto
 
@@ -46,7 +49,7 @@ Cada nivel debe ser útil por sí mismo e incluir las reglas de integridad, auto
 3. Cada hecho afirmado se compara con la evidencia y recibe `PASS`, `FAIL` o `ABSTAIN`.
 4. El resultado diferencia entre una afirmación respaldada, una contradicha y evidencia insuficiente.
 
-Todavía no se eligió el modelo exacto para obtener y verificar la evidencia. Los contratos inteligentes no pueden leer directamente logs históricos; cualquier diseño que use evidencia de transacciones pasadas debe explicar cómo se autentica. Las alternativas y sus implicancias para el límite de Solidity están en el [Technical README](TECHNICAL_README.md).
+La comparación de afirmaciones permanece estable mientras mejora la autenticación de evidencia. Cada recibo separa el `verdict` acotado de la etiqueta `evidence_assurance`: por ejemplo, `VERIFIED` respecto de la evidencia obtenida puede coexistir con `RPC_ATTESTED`. Los contratos inteligentes no pueden leer logs históricos directamente; el modelo y sus límites están en el [Technical README](TECHNICAL_README.md).
 
 ## Estado actual
 

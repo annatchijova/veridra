@@ -20,9 +20,11 @@ Follow the `destination-driven-construction` skill. The destination is the compl
 ## Invariants for every level
 
 - A ledger fact is not proof of wallet ownership, legal settlement, invoice satisfaction, or offchain delivery.
-- Missing, ambiguous, unauthenticated, or unsupported evidence cannot produce `VERIFIED`.
+- Missing, ambiguous, invalid, or unsupported evidence cannot produce a non-insufficient verdict. A result may be `VERIFIED` relative to evidence with a declared weaker assurance such as `RPC_ATTESTED`; always preserve that scope.
 - An unspecified assertion is not a passing check. Keep `ABSTAIN` distinct from `FAIL` and from an acquisition/verification error.
 - State exactly what evidence source authenticates a transaction fact. A transaction hash or a hash stored by a contract does not authenticate caller-supplied claims by itself.
+- Keep claim adjudication semantics stable across evidence-authentication levels. A receipt separates its scoped `verdict` from `evidence_assurance`; `VERIFIED / RPC_ATTESTED` is relative to evidence acquired from the named source and does not imply that the RPC cryptographically signed it.
+- Version every persistent receipt. Unknown schema versions or evidence-assurance variants fail explicitly; never silently coerce them to a known assurance level. Preserve readers/verifiers for versions still declared supported.
 - Use exact integer token units and explicit chain/token identity in consequential comparisons.
 - Bound inputs, loops, arrays, and evidence size. Treat reorganization, retry, replay, duplicate submission, and failed external calls as ordinary states.
 - Before any contract holds or routes value, trace every amount through every reachable state and name its payout or recovery path. Every terminal state has an explicit value disposition.

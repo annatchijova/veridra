@@ -24,18 +24,21 @@ Veridra is scoped to facts that can be tied to the selected chain evidence. A le
 
 The product is not implemented yet. This checkout has no Solidity contracts, executable demo, deployed endpoint, or test results to report. See the [technical design and open decisions](TECHNICAL_README.md).
 
+The first evidence path is deliberately scoped: Level 1 uses RPC-acquired evidence with explicit source attribution. Its receipt does not claim trustlessness. Later levels strengthen how the same evidence is authenticated, without changing what a payment claim means. The [architecture decision record](docs/ARCHITECTURE_FRACTURE.md) explains the progression and its limits.
+
 ## Destination and levels
 
-The destination is a payment verification service that merchants, marketplaces, and automated agents can use to check a payment claim against authenticated Monad evidence and receive a scoped, reproducible result. The project will build toward that destination in complete levels:
+The destination is a payment verification service that merchants, marketplaces, and automated agents can use to check a payment claim against Monad evidence with an explicit assurance level and receive a scoped, reproducible result. The project will build toward that destination in complete levels:
 
 | Level | Product state |
 |---|---|
-| 1 | Verify a claim about one supported Monad payment, initially a direct native MON transfer or a direct ERC-20 transfer. Unsupported transaction shapes return insufficient evidence. |
-| 2 | Produce a versioned evidence receipt that another verifier can check independently, including the evidence source and the exact scope of the result. |
-| 3 | Let a payer or recipient register an authorized payment expectation before settlement, so a reference or deadline is tied to prior evidence rather than inferred from a transfer. |
-| 4 | Give a named merchant or marketplace an API and user flow to consume receipts safely, including duplicate requests and chain reorganization handling. |
-| 5 | Extend the verified transaction shapes and dispute comparisons only where each supported transfer can be reconstructed and each result remains bounded to its evidence. |
-| 6 (optional) | Offer a private receipt only if a real user needs to prove a policy about private commercial terms without disclosing those terms, and a ZK proof hides information beyond what the public ledger already reveals. |
+| 1 | Verify a claim about one supported Monad payment using explicitly attributed RPC evidence. The receipt identifies the provider/source and observation context; it does not claim trustless historical authentication. |
+| 2 | Produce a versioned, portable evidence receipt and independently check recent transaction/receipt inclusion against `BLOCKHASH`, while the block remains within the 256-block window. |
+| 3 | Preserve historical verification with an authenticated persistent root source, such as a light client, oracle, or checkpoint mechanism whose trust assumptions are explicit. |
+| 4 | Let a payer or recipient register an authorized payment expectation before settlement, so a reference or deadline is tied to prior evidence rather than inferred from a transfer. |
+| 5 | Give a named merchant or marketplace an API and user flow to consume receipts safely, including duplicate requests and chain reorganization handling. |
+| 6 | Extend supported transaction shapes and claim comparisons only where each transfer can be reconstructed and each result remains bounded to its evidence. |
+| 7 (optional) | Offer a private receipt only if a real user needs to prove a policy about private commercial terms without disclosing those terms, and a ZK proof hides information beyond what the public ledger already reveals. |
 
 Every level must be useful on its own and carry the integrity, authority, and failure-handling rules required by the destination. If hackathon time runs short, the project will stop at the highest complete level reached instead of shipping thinner versions of every level. The optional privacy level can be omitted without changing the standard receipt path. The [Technical README](TECHNICAL_README.md) records the level boundaries and shared invariants.
 
@@ -46,7 +49,7 @@ Every level must be useful on its own and carry the integrity, authority, and fa
 3. Each asserted fact is compared with the evidence and receives `PASS`, `FAIL`, or `ABSTAIN`.
 4. The result distinguishes a supported claim, a contradicted claim, and insufficient evidence.
 
-The exact evidence acquisition and verification model has not been selected. Smart contracts cannot read historical event logs directly; a design that uses past transaction evidence must state how that evidence is authenticated. The alternatives and the consequence for the Solidity boundary are documented in the [Technical README](TECHNICAL_README.md).
+The claim comparison stays stable as evidence authentication improves. Each receipt carries a scoped `verdict` separately from an `evidence_assurance` label: for example, `VERIFIED` relative to acquired evidence can coexist with `RPC_ATTESTED`. Smart contracts cannot read historical event logs directly; the authentication path and its limits are documented in the [Technical README](TECHNICAL_README.md).
 
 ## Repository
 
