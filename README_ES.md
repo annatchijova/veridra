@@ -4,7 +4,7 @@
 
 Alguien puede mostrarte un hash de transacción o una captura de pago convincente. Eso no responde la pregunta útil: **¿la evidencia onchain respalda el pago que afirma haber ocurrido?**
 
-Veridra es un proyecto de hackathon en su etapa inicial. La idea de producto es verificar afirmaciones de pago en Monad: comparar una afirmación estructurada con evidencia de una transacción y expresar qué respalda la evidencia, qué contradice y qué no se pudo establecer. El componente onchain se pretende escribir en Solidity. La fuente de evidencia y el límite entre el trabajo onchain y offchain siguen siendo decisiones de diseño abiertas.
+Veridra verifica afirmaciones de pago en Monad: compara una afirmación estructurada con evidencia de una transacción y expresa qué respalda, qué contradice y qué no se pudo establecer. Los primeros contratos Solidity implementan adjudicación determinista y un registro inmutable de recibos para un publisher autorizado. La adquisición RPC y la extracción de transacciones siguen siendo trabajo offchain; los contratos no autentican la respuesta del RPC del publisher.
 
 ## Un ejemplo concreto
 
@@ -22,7 +22,7 @@ Si la transferencia fue a otra dirección, el resultado debería ser `NOT_VERIFI
 
 Veridra se limita a hechos que puedan vincularse con la evidencia de la cadena seleccionada. El resultado del ledger no establece por sí solo quién controlaba una wallet, si una factura quedó legalmente saldada ni si se entregaron bienes o servicios. Una afirmación solo puede verificarse hasta donde lo permitan los datos de la transacción y la fuente de evidencia elegida.
 
-El producto todavía no está implementado. Este checkout no contiene contratos Solidity, una demo ejecutable, un endpoint desplegado ni resultados de pruebas. Consulta el [diseño técnico y las decisiones abiertas](TECHNICAL_README.md).
+El núcleo de contratos del Nivel 1 está implementado y compila con Solidity 0.8.24 usando la configuración `via_ir` del repositorio. Este checkout todavía no tiene cliente RPC, flujo end-to-end ejecutable, endpoint desplegado ni resultados de pruebas. Consulta el [diseño técnico y las decisiones abiertas](TECHNICAL_README.md).
 
 El primer camino de evidencia tiene un alcance deliberado: el Nivel 1 usa evidencia obtenida por RPC y atribuye explícitamente su fuente. El recibo no afirma que sea trustless. Los niveles posteriores fortalecen la autenticación de esa misma evidencia sin cambiar el significado de una afirmación de pago. El [registro de decisiones arquitectónicas](docs/ARCHITECTURE_FRACTURE.md) explica la progresión y sus límites.
 
@@ -53,6 +53,8 @@ La comparación de afirmaciones permanece estable mientras mejora la autenticaci
 
 ## Estado actual
 
-La dirección de producto toma como referencia el proyecto local PROOF, cuya implementación existente verifica afirmaciones de pago de Stellar en Python. Veridra es una nueva dirección de implementación, no un port de ese código fuente. Ningún comportamiento descrito aquí fue implementado o verificado de forma independiente en este repositorio.
+La dirección de producto adapta semánticas útiles de PROOF —afirmaciones explícitas, `PASS` / `FAIL` / `ABSTAIN` y veredictos generales distintos— a evidencia de transacciones EVM. Veridra se implementa en Solidity; no es un port del código fuente. Los contratos compilan, pero su comportamiento en ejecución y la extracción RPC todavía no se verificaron de forma independiente.
+
+Los montos son enteros exactos en la unidad mínima del activo. No se usa aritmética de punto flotante.
 
 Para la arquitectura, los límites de confianza, las decisiones y las formas de refutar el diseño, consulta el **[Technical README](TECHNICAL_README.md)**.

@@ -34,7 +34,7 @@ The exact encoding, canonicalization, and retention policy are open. For Level 1
 
 **Destination:** a payment-verification service for merchants, marketplaces, and automated agents. A client supplies a bounded payment claim; Veridra returns evidence, per-assertion outcomes, and a receipt that can be independently checked. The service must make its evidence source and trust assumptions visible. It must not turn a ledger fact into a claim about identity, contract performance, or legal discharge.
 
-Each level below is a coherent product state. None is a disposable prototype, and the later levels must extend earlier ones without bypassing their evidence or authorization rules. All levels are proposed; none is implemented.
+Each level below is a coherent product state. None is a disposable prototype, and the later levels must extend earlier ones without bypassing their evidence or authorization rules. Level 1 has an initial Solidity adjudicator and immutable receipt registry; its RPC acquisition and supported transaction extraction path are not implemented, so Level 1 is not complete.
 
 The intended product has a normal public-evidence path and may have a separate selective-disclosure path. This diagram is conceptual; the privacy path exists only if Level 7 passes its entry conditions. Claim semantics remain stable as the authentication path improves.
 
@@ -58,7 +58,11 @@ The private path must preserve the link between evidence authenticated under its
 
 Accept one Monad transaction hash and explicit assertions about one supported direct native MON transfer or direct ERC-20 transfer. Obtain the transaction, receipt, relevant logs, block number/hash, and chain ID from a declared RPC/provider; record when the evidence was observed and which facts were deterministically checked. Compare every asserted field and return a bounded, versioned receipt. `RPC_ATTESTED` means provider-attributed acquisition under this design; it is not a provider signature and does not claim trustless or consensus-authenticated history.
 
-**Complete when:** the provider/source identity and observation timestamp are in the receipt; the receipt records chain ID, transaction/receipt/log evidence, block number/hash, and the exact deterministic checks; both supported transfer forms have explicit extraction rules; unsupported forms fail closed; and amount units, token identity, reorganization/finality policy, verdict semantics, and RPC trust limits are specified. This level does not infer invoice references, contract-internal transfer semantics, identity, or delivery.
+**Implemented contract surface:** `src/PaymentAdjudicator.sol` compares the transaction hash, chain ID, execution status, and any asserted sender, recipient, asset, and amount. It preserves `PASS` / `FAIL` / `ABSTAIN`; a failed check produces `NOT_VERIFIED`, and missing or insufficiently final evidence produces `INSUFFICIENT_EVIDENCE`. `src/VeridraReceiptRegistry.sol` accepts submissions from one immutable publisher, evaluates them against `block.chainid`, and stores a version-1 receipt with `RPC_ATTESTED`, source ID, observation time, evidence digests, checks, and verdict. Repeated identical submissions return the same receipt ID.
+
+**Trust boundary:** the contract does not call an RPC or authenticate the publisher/provider. The publisher supplies normalized facts, raw-payload digests, provider identity, and its finality-policy observations. The contract deterministically compares and records those inputs; it cannot prove those inputs came from the named RPC. The finality fields are publisher assertions, not an onchain confirmation check. The receipt is an immutable record of that publisher's submission and the contract's comparison.
+
+**Complete when:** the offchain Monad RPC client checks chain ID and cross-consistency among transaction, receipt, and containing block; native MON and direct ERC-20 extraction each have explicit rules; unsupported, ambiguous, and non-final evidence fail closed; the raw transaction/receipt/log payloads can be reconstructed and matched to the recorded digests; and an independent consumer can read and check the versioned receipt. Reorganization/finality policy, token identity, and RPC trust limits must be specified. This level does not infer invoice references, contract-internal transfer semantics, identity, or delivery.
 
 ### Level 2 — Recent inclusion-proof receipt
 
@@ -126,7 +130,23 @@ flowchart LR
     J --> R
 ```
 
-This is a conceptual flow, not an implemented architecture. The intended onchain component will be written in Solidity. It is not yet decided whether a contract will verify a proof, accept an attestation, record a receipt, or be unnecessary for the first verification flow.
+The offchain acquisition and extraction flow remains planned. The current Solidity contracts implement only deterministic adjudication over publisher-supplied normalized facts and immutable receipt recording; they do not fetch or authenticate RPC data.
+
+### Level 1 component boundary
+
+Level 1 needs an offchain RPC client plus transaction extraction, deterministic adjudication, and receipt serialization. The current contract adds two narrower properties: it applies the same fixed claim comparisons onchain and preserves the publisher's versioned submission in immutable storage. It does not make the RPC answer more authentic. The single immutable publisher is a product trust authority; key rotation or multi-publisher policy requires a versioned design rather than silently widening this contract.
+
+The planned RPC acquisition sequence is:
+
+1. Read `eth_chainId` and compare it with the configured Monad network.
+2. Fetch `eth_getTransactionByHash` and `eth_getTransactionReceipt` for the requested hash.
+3. Fetch the receipt's containing block with `eth_getBlockByNumber` and check that transaction, receipt, and block agree on transaction hash, block number, and block hash.
+4. Apply the declared finality/reorganization policy before returning a usable result. Null, inconsistent, unsupported, or not-yet-final evidence yields `INSUFFICIENT_EVIDENCE`; a successfully acquired receipt with failed execution contradicts a claim that the payment succeeded and yields `NOT_VERIFIED`.
+5. Extract only the explicitly supported facts, compare exact integer values against the bounded claim, and serialize the versioned receipt with the source label and observation context.
+
+The source identifier must be safe to publish: never put API keys or bearer credentials in a receipt. `observed_at` is the verifier host's observation time, not a consensus timestamp. Raw token addresses are identifiers; symbols and decimals must not be trusted from arbitrary RPC responses. A matching ERC-20-shaped `Transfer` log is not sufficient by itself to establish arbitrary token balance semantics. The supported token policy remains an open decision; do not broaden a token claim based only on a display symbol or event signature.
+
+The contract receipt is an immutable record of publisher-supplied facts and deterministic comparisons, not a cryptographic proof of the RPC's honesty. The contract stores digests of the transaction, receipt, and logs; the raw payloads remain necessary offchain to inspect or reproduce those digests. A hash or integrity seal cannot upgrade `RPC_ATTESTED` into consensus authentication.
 
 ## Trust boundary: historical EVM evidence
 
@@ -142,13 +162,13 @@ The alternatives, trust model, selected progression, and decision record are in 
 
 ## Security properties to preserve
 
-These are design requirements, not implemented guarantees:
+These are shared requirements. The adjudicator represents the scoped-check behavior and returns insufficient evidence when evidence is absent or its publisher-declared finality fields do not meet the declared threshold. It cannot detect RPC fetch/decode failures because that client is not implemented:
 
 - **Fail closed:** fetch, decode, proof, or verification failures must not produce `VERIFIED`.
 - **Scoped claims:** unspecified fields are `ABSTAIN`; they are not treated as successful checks.
 - **No overreach:** ledger evidence must not be presented as proof of identity, legal discharge, or physical delivery.
-- **Deterministic comparison:** use integer token units and explicit chain/token identifiers; avoid floating-point values and ambiguous display strings in consequential comparisons.
-- **Bounded inputs and work:** define limits for dynamic arrays, calldata, supported token types, and evidence size before implementation.
+- **Deterministic comparison:** use integer token base units and explicit chain/token identifiers; avoid floating-point values and ambiguous display strings in consequential comparisons. If a future policy needs a fractional ratio, encode it as an exact numerator/denominator pair and define reduction, bounds, and rounding behavior explicitly.
+- **Bounded inputs and work:** the current contract accepts only fixed-size structs and a seven-check loop. Dynamic evidence, transaction-shape arrays, and RPC payload-size limits remain part of the offchain client's design.
 - **Explicit authority:** document who can submit, attest, revoke, or challenge evidence before any contract holds value or creates a durable verdict.
 
 ## Decisions still open
@@ -163,7 +183,18 @@ These are design requirements, not implemented guarantees:
 
 The fail-closed requirement is falsified if missing, unsupported, malformed, or invalid evidence yields a non-insufficient verdict. The scoping requirement is falsified if an omitted claim field is represented as a passing check. The assurance label is falsified if a receipt claims a stronger authentication mechanism than the verifier actually checked. A `VERIFIED / RPC_ATTESTED` result is falsified when the claim does not match the evidence returned by its declared source; it does not independently attest that source's honesty.
 
-No contracts, tests, demo, or deployment exist in this repository yet. Once implemented, this section must name the test cases and artifacts that support each claim; a green test suite will support only the cases it actually covers.
+The Solidity contracts compile with solc 0.8.24, optimizer enabled, and `viaIR: true`, matching the repository's Foundry configuration. No tests, RPC client, executable end-to-end demo, or deployment have been verified. Compilation establishes syntax/type/code-generation success only; it does not establish runtime correctness or the truth of publisher-supplied evidence.
+
+### Initial adversarial review of Level 1 contracts
+
+**Threat model:** arbitrary callers may submit malformed or contradictory values, but cannot call as the configured publisher. The publisher key, RPC provider, compiler, chain consensus, and deployment process are trusted inputs for this level; compromise or dishonesty of the publisher is outside the contract's protection.
+
+- **Code fact:** only the immutable `publisher` can create receipts. Claim/evidence structs have fixed sizes, and adjudication has a fixed seven-element check loop.
+- **Code fact:** the contract compares claim and evidence chain IDs to `block.chainid`, requires nonzero provenance identifiers and observation time, rejects future observation times, and rejects missing transaction/receipt/log digests when evidence is marked available.
+- **Code fact:** absent evidence or a missing/unsatisfied publisher-declared finality policy produces `INSUFFICIENT_EVIDENCE`; with usable evidence, any failed check yields `NOT_VERIFIED`; unspecified optional assertions remain `ABSTAIN`.
+- **Accepted trust boundary:** the publisher can fabricate transaction facts, payload digests, provider identity, and confirmation counts, then obtain `VERIFIED` if those fabricated values match the claim. This follows from the declared RPC-attested trust model; the contract does not authenticate them.
+- **Operational risk:** the publisher address cannot rotate. Losing its key stops new receipt publication; a future rotation mechanism needs explicit authority and receipt-version semantics.
+- **Not verified:** runtime state transitions, gas behavior, and the eventual RPC extraction path. Compilation was checked; tests and deployment were not run.
 
 ## Source context
 

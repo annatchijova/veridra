@@ -4,7 +4,7 @@
 
 Someone can show you a transaction hash or a convincing payment screenshot. That still leaves the useful question unanswered: **does the onchain evidence support the payment they claim happened?**
 
-Veridra is a hackathon project in its initial setup. Its intended product is a payment-claim verifier for Monad: compare a structured claim with evidence about a transaction and report what the evidence supports, what it contradicts, and what could not be established. The onchain component is intended to be written in Solidity. The evidence source and the boundary between onchain and offchain work are still design decisions.
+Veridra is a payment-claim verifier for Monad: compare a structured claim with evidence about a transaction and report what the evidence supports, what it contradicts, and what could not be established. The first Solidity contracts implement deterministic adjudication and an immutable receipt registry for one authorized publisher. RPC acquisition and transaction extraction remain offchain work; the contracts do not authenticate the publisher's RPC response.
 
 ## A concrete example
 
@@ -22,7 +22,7 @@ If the transfer went to a different address, the result should be `NOT_VERIFIED`
 
 Veridra is scoped to facts that can be tied to the selected chain evidence. A ledger result does not by itself establish who controlled a wallet, whether an invoice was legally satisfied, or whether goods or services were delivered. A claim can only be checked to the extent that the transaction data and the chosen evidence source support it.
 
-The product is not implemented yet. This checkout has no Solidity contracts, executable demo, deployed endpoint, or test results to report. See the [technical design and open decisions](TECHNICAL_README.md).
+The Level 1 contract core is implemented and compiles with Solidity 0.8.24 using the repository's `via_ir` setting. This checkout has no RPC client, executable end-to-end flow, deployed endpoint, or test results to report. See the [technical design and open decisions](TECHNICAL_README.md).
 
 The first evidence path is deliberately scoped: Level 1 uses RPC-acquired evidence with explicit source attribution. Its receipt does not claim trustlessness. Later levels strengthen how the same evidence is authenticated, without changing what a payment claim means. The [architecture decision record](docs/ARCHITECTURE_FRACTURE.md) explains the progression and its limits.
 
@@ -55,15 +55,17 @@ The claim comparison stays stable as evidence authentication improves. Each rece
 
 ```text
 veridra/
+├── src/                  # Solidity adjudicator and immutable receipt registry
+├── foundry.toml          # Solidity 0.8.24 / Monad Testnet RPC profile
 ├── README.md             # English project overview
 ├── README_ES.md          # Spanish adaptation
 └── TECHNICAL_README.md   # Design, trust boundaries, and unresolved choices
 ```
 
-This repository is at project inception. There is no runnable setup command yet. The initial target is Monad, with the intended onchain component in Solidity; no testnet or mainnet deployment is claimed.
+There is no runnable end-to-end command yet, and no testnet or mainnet deployment is claimed. Amounts use exact integers in the asset's smallest unit. No floating-point arithmetic is used.
 
 ## Current evidence
 
-The product direction is informed by the local PROOF project, whose existing implementation verifies Stellar payment claims in Python. Veridra is a new implementation direction, not a port of that source code. No behavior described above has yet been implemented or independently verified in this repository.
+The product direction adapts PROOF's useful semantics—explicit claims, `PASS` / `FAIL` / `ABSTAIN`, and distinct overall verdicts—to EVM transaction evidence. Veridra is a Solidity implementation, not a source-code port. The contracts compile, but runtime behavior and RPC extraction have not yet been independently verified.
 
 For architecture, threat boundaries, design choices, and falsifiers, see the **[Technical README](TECHNICAL_README.md)**.
