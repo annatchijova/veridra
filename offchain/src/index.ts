@@ -8,6 +8,8 @@ export type {
 export { publishReceipt, ReceiptPublicationError } from "./publishReceipt.js";
 export type { PublishedReceipt, PublishReceiptInput } from "./publishReceipt.js";
 export { InvalidPaymentClaimError, parsePaymentClaim } from "./claim.js";
+export { buildTransactionAndReceiptProofs, MptProofInputError } from "./mptProof.js";
+export type { IndexedTrieProof, TransactionAndReceiptProofs } from "./mptProof.js";
 export {
   ReceiptIntegrityError,
   ReceiptNotFoundError,
