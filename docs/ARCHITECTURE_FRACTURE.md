@@ -94,6 +94,16 @@ These choices alter the trust boundary. No Solidity verifier, registry, or token
 - **Revisit trigger:** first-user research rejects RPC trust; the target network does not support the expected proof path; a persistent-root mechanism has unacceptable authority/liveness assumptions; or source data cannot be normalized consistently across paths.
 - **Falsifier:** a concrete user requirement shows that the Level 1 result is misleading even with explicit provenance, or a proof experiment cannot bind transaction, receipt, and claim facts to the same authenticated block root. If a proposed ZK path hides no information unavailable from public chain/context, omit it.
 
+### D-003 — Keep recent inclusion verification read-only and RPC-attributed
+
+- **Decision:** the offchain client may submit an acquired proof to a configured `RecentInclusionVerifier` through a read-only call, but reports only `RPC_REPORTED_RECENT_INCLUSION_ACCEPTED`. An `eth_call` response is still provider-controlled, so this alone is not authenticated consensus evidence. Payment adjudication remains separate.
+- **Forces:** raw RPC data and RPC execution results are untrusted; inclusion and payment semantics are distinct properties; the `BLOCKHASH` window is temporary; the existing registry persists only `RPC_ATTESTED` receipts and must not silently upgrade them.
+- **Alternatives considered:** accept local root reconstruction as proof (rejected: the caller could choose roots); combine inclusion and payment decoding before the decoder's supported transaction/log semantics are agreed (rejected: would conflate facts); ask the registry to persist a new assurance immediately (deferred until receipt schema and fact binding are specified).
+- **Assumptions:** the configured verifier address is the reviewed deployment on the expected chain; callers understand the label as an RPC report, not independent proof; the RPC's `eth_call` execution corresponds to a canonical recent state for that chain.
+- **Reversibility:** the client wrapper is additive and read-only. Publishing this result as a portable receipt or changing registry assurance would create a versioned contract/schema migration and is deliberately not done here.
+- **Revisit trigger:** payment-fact extraction and support policy are specified, a portable receipt schema is designed, or verifier deployment identity can be pinned by the deployment workflow.
+- **Falsifier:** a caller can obtain the RPC-reported acceptance without the reviewed verifier accepting both MPT paths against that execution's `BLOCKHASH`, or consumers interpret it as independently authenticated consensus evidence or as a payment assertion.
+
 ## Naming check
 
 **Veridra** is the selected working name in this repository. Public copy should describe “payment evidence” or “scoped verification” and name the applicable assurance; the name does not itself promise trustlessness, privacy, settlement finality, or legal proof.
