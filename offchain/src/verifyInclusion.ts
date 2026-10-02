@@ -1,5 +1,6 @@
 import { getAddress, type Address, type PublicClient } from "viem";
 import { recentInclusionVerifierAbi } from "./abi/recentInclusionVerifierAbi.js";
+import { derivePaymentFactFromRawValues, type RawPaymentFact } from "./paymentFacts.js";
 import type { AcquiredRecentInclusionProof } from "./proofRpc.js";
 
 const MAX_UINT64 = (1n << 64n) - 1n;
@@ -10,6 +11,8 @@ export type VerifyRecentInclusionInput = {
   verifierAddress: Address;
   expectedChainId: bigint;
   proof: AcquiredRecentInclusionProof;
+  /** Explicit token policy used to rederive facts from the submitted trie values. */
+  supportedTokenAddresses: readonly Address[];
 };
 
 export type OnchainRecentInclusionResult = {
@@ -19,6 +22,7 @@ export type OnchainRecentInclusionResult = {
   blockHash: AcquiredRecentInclusionProof["blockHash"];
   transactionHash: AcquiredRecentInclusionProof["transactionHash"];
   transactionIndex: number;
+  paymentFact: RawPaymentFact;
 };
 
 export class RecentInclusionVerificationError extends Error {
@@ -34,8 +38,9 @@ function requireCondition(condition: boolean, message: string): asserts conditio
 
 /**
  * Ask the deployed verifier to authenticate a locally acquired inclusion
- * proof against this chain's BLOCKHASH window. This verifies inclusion only;
- * payment facts and claim adjudication remain outside this function.
+ * proof against this chain's BLOCKHASH window, then re-derives and checks the
+ * attached payment fact from the same raw trie values. The RPC result remains
+ * provider-attributed; claim adjudication remains outside this function.
  */
 export async function verifyRecentInclusionOnchain(
   input: VerifyRecentInclusionInput,
@@ -58,6 +63,32 @@ export async function verifyRecentInclusionOnchain(
     input.proof.proofs.transaction.index === input.proof.transactionIndex
       && input.proof.proofs.receipt.index === input.proof.transactionIndex,
     "Transaction and receipt proofs must use the same target index",
+  );
+  let paymentFact: RawPaymentFact;
+  try {
+    paymentFact = await derivePaymentFactFromRawValues(
+      input.proof.proofs.transaction.value,
+      input.proof.proofs.receipt.value,
+      input.expectedChainId,
+      input.supportedTokenAddresses,
+    );
+  } catch {
+    throw new RecentInclusionVerificationError("Included transaction and receipt do not yield a supported payment fact");
+  }
+  const attachedFact = input.proof.paymentFact;
+  requireCondition(
+    attachedFact !== null && typeof attachedFact === "object"
+      && paymentFact.transactionHash.toLowerCase() === input.proof.transactionHash.toLowerCase()
+      && paymentFact.chainId === input.proof.chainId
+      && paymentFact.transactionHash.toLowerCase() === attachedFact.transactionHash.toLowerCase()
+      && paymentFact.chainId === attachedFact.chainId
+      && paymentFact.transactionType === attachedFact.transactionType
+      && paymentFact.successful === attachedFact.successful
+      && paymentFact.sender.toLowerCase() === attachedFact.sender.toLowerCase()
+      && paymentFact.recipient.toLowerCase() === attachedFact.recipient.toLowerCase()
+      && paymentFact.asset.toLowerCase() === attachedFact.asset.toLowerCase()
+      && paymentFact.amount === attachedFact.amount,
+    "Attached payment fact differs from the decoded included transaction and receipt",
   );
 
   const verifierAddress = getAddress(input.verifierAddress);
@@ -90,5 +121,6 @@ export async function verifyRecentInclusionOnchain(
     blockHash: input.proof.blockHash,
     transactionHash: input.proof.transactionHash,
     transactionIndex: input.proof.transactionIndex,
+    paymentFact,
   };
 }
