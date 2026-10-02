@@ -2,12 +2,23 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Address, Hex, PublicClient } from "viem";
 import type { AcquiredRecentInclusionProof } from "./proofRpc.js";
+import type { RawPaymentFact } from "./paymentFacts.js";
 import { RecentInclusionVerificationError, verifyRecentInclusionOnchain } from "./verifyInclusion.js";
 
 const VERIFIER = `0x${"11".repeat(20)}` as Address;
 const TX_HASH = `0x${"22".repeat(32)}` as Hex;
 const BLOCK_HASH = `0x${"33".repeat(32)}` as Hex;
 const ROOT = `0x${"44".repeat(32)}` as Hex;
+const PAYMENT_FACT: RawPaymentFact = {
+  chainId: 10143n,
+  transactionHash: TX_HASH,
+  transactionType: "legacy",
+  successful: true,
+  sender: "0x5555555555555555555555555555555555555555",
+  recipient: "0x6666666666666666666666666666666666666666",
+  asset: "0x0000000000000000000000000000000000000000",
+  amount: 1n,
+};
 
 function acquiredProof(): AcquiredRecentInclusionProof {
   return {
@@ -17,6 +28,7 @@ function acquiredProof(): AcquiredRecentInclusionProof {
     rawHeader: "0x01",
     transactionIndex: 1,
     transactionHash: TX_HASH,
+    paymentFact: PAYMENT_FACT,
     proofs: {
       transactionRoot: ROOT,
       receiptRoot: ROOT,

@@ -12,6 +12,8 @@ export { buildInclusionProofFromRawBlock, buildTransactionAndReceiptProofs, MptP
 export type { IndexedTrieProof, RawBlockInclusionProof, TransactionAndReceiptProofs } from "./mptProof.js";
 export { acquireRecentInclusionProof, InclusionProofAcquisitionError } from "./proofRpc.js";
 export type { AcquiredRecentInclusionProof, RecentInclusionProofInput } from "./proofRpc.js";
+export { derivePaymentFactFromRawValues, RawPaymentFactError } from "./paymentFacts.js";
+export type { RawPaymentFact } from "./paymentFacts.js";
 export { verifyRecentInclusionOnchain, RecentInclusionVerificationError } from "./verifyInclusion.js";
 export type { OnchainRecentInclusionResult, VerifyRecentInclusionInput } from "./verifyInclusion.js";
 export {

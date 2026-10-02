@@ -1,5 +1,6 @@
 import { keccak256, type Hex } from "viem";
 import { buildInclusionProofFromRawBlock, type RawBlockInclusionProof } from "./mptProof.js";
+import { derivePaymentFactFromRawValues, type RawPaymentFact } from "./paymentFacts.js";
 
 const MAX_RPC_RESPONSE_BYTES = 5_000_000;
 const MAX_UINT64 = (1n << 64n) - 1n;
@@ -12,11 +13,14 @@ export type RecentInclusionProofInput = {
   rpcUrl: string;
   expectedChainId: bigint;
   transactionHash: Hex;
+  /** Exact token contracts the caller recognizes as supported payment assets. */
+  supportedTokenAddresses: readonly `0x${string}`[];
 };
 
 export type AcquiredRecentInclusionProof = RawBlockInclusionProof & {
   blockHash: Hex;
   chainId: bigint;
+  paymentFact: RawPaymentFact;
 };
 
 export class InclusionProofAcquisitionError extends Error {
@@ -166,5 +170,14 @@ export async function acquireRecentInclusionProof(
   if (keccak256(proof.rawHeader).toLowerCase() !== blockHash.toLowerCase()) {
     fail("Raw block header hash differs from transaction lookup");
   }
-  return { ...proof, blockHash, chainId };
+  const paymentFact = await derivePaymentFactFromRawValues(
+    proof.proofs.transaction.value,
+    proof.proofs.receipt.value,
+    input.expectedChainId,
+    input.supportedTokenAddresses,
+  );
+  if (paymentFact.transactionHash.toLowerCase() !== proof.transactionHash.toLowerCase()) {
+    fail("Decoded payment fact is not bound to the requested transaction");
+  }
+  return { ...proof, blockHash, chainId, paymentFact };
 }
