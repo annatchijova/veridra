@@ -4,6 +4,9 @@
   "type": "module",
   "version": "0.1.0",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "veridra": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

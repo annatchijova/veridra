@@ -29,3 +29,14 @@ Amounts and chain/block/time values are `bigint`. Pass observation time as a can
 Native MON evidence uses the transaction's top-level `from`, `to`, and `value`, requires empty calldata and successful execution, and says nothing about net recipient balance. ERC-20 evidence requires one standard `Transfer` log, a configured token address, and that token to be the transaction's direct target. This allowlist narrows accepted inputs; it does not establish token correctness or balance semantics.
 
 RPC failures, inconsistent data, unsupported transaction shapes, and ambiguous transfers throw `InsufficientEvidenceError`. The caller should map that error to an `INSUFFICIENT_EVIDENCE` receipt or return it without attempting publication. Do not catch it and convert it into `VERIFIED`.
+
+- `verifyReceipt()` is a read-only, independent consumer of a published receipt: it reads the stored claim and evidence and recomputes the verdict from a TypeScript re-implementation of `PaymentAdjudicator.evaluate()`, written without reusing the Solidity control flow. It rejects a schema version or evidence-assurance variant it was not written to understand, rejects a receipt recorded under an unexpected chain, and throws `ReceiptIntegrityError` if its own recomputation ever disagrees with what the contract stored — this should never happen for a correctly behaving registry, and the error exists so a divergence is reported loudly rather than silently trusted.
+
+## CLI
+
+```sh
+npm run build
+node dist/cli.js verify <receiptId> --registry <address> [--rpc-url <url>] [--chain-id <id>]
+```
+
+`--rpc-url` defaults to `MONAD_TESTNET_RPC_URL` or, failing that, viem's bundled Monad Testnet default RPC. `--registry` can also be set via `VERIDRA_REGISTRY_ADDRESS`. The command prints the verified receipt as JSON, or a non-zero exit with the specific error (not found, unsupported variant, or an integrity mismatch). There is no `publish` subcommand yet — publishing needs a funded signer and is still exercised through `publishReceipt()` directly, not the CLI.
