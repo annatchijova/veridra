@@ -1,8 +1,10 @@
-import { bytesToHex, hexToBytes, keccak256, toRlp, type Hex } from "viem";
+import { bytesToHex, fromRlp, hexToBytes, keccak256, toRlp, type Hex } from "viem";
 
 const MAX_ENTRIES = 4_096;
 const MAX_VALUE_BYTES = 8_192;
 const MAX_TOTAL_VALUE_BYTES = 2_000_000;
+const MAX_RAW_BLOCK_BYTES = 2_000_000;
+const MAX_HEADER_BYTES = 4_096;
 const MAX_PROOF_NODES = 20;
 
 type RlpValue = Uint8Array | readonly RlpValue[];
@@ -32,6 +34,16 @@ export interface TransactionAndReceiptProofs {
   transaction: IndexedTrieProof;
   receipt: IndexedTrieProof;
 }
+
+export interface RawBlockInclusionProof {
+  blockNumber: bigint;
+  rawHeader: Hex;
+  transactionIndex: number;
+  transactionHash: Hex;
+  proofs: TransactionAndReceiptProofs;
+}
+
+type DecodedRlp = Hex | readonly DecodedRlp[];
 
 function fail(message: string): never {
   throw new MptProofInputError(message);
@@ -191,5 +203,86 @@ export function buildTransactionAndReceiptProofs(
     receiptRoot: keccak256(bytesToHex(receiptRoot.encoded)),
     transaction: createProof(txRoot, targetKey, txValues[index]!, index),
     receipt: createProof(receiptRoot, targetKey, receiptValues[index]!, index),
+  };
+}
+
+function asList(value: DecodedRlp | undefined, label: string): readonly DecodedRlp[] {
+  if (!Array.isArray(value)) fail(`${label} must be an RLP list`);
+  return value as readonly DecodedRlp[];
+}
+
+function asBytes(value: DecodedRlp | undefined, label: string): Hex {
+  if (typeof value !== "string" || !/^0x(?:[0-9a-fA-F]{2})*$/.test(value)) fail(`${label} must be an RLP byte string`);
+  return value;
+}
+
+function decodeHeaderNumber(value: DecodedRlp | undefined): bigint {
+  const bytes = asBytes(value, "Header block number");
+  if (bytes.length > 18 || (bytes.length > 2 && bytes.slice(2, 4) === "00")) fail("Header block number is not a canonical uint64");
+  const number = bytes === "0x" ? 0n : BigInt(bytes);
+  if (number > 0xffff_ffff_ffff_ffffn) fail("Header block number exceeds uint64");
+  return number;
+}
+
+/**
+ * Decode a bounded raw RLP block and raw receipts, locate the requested
+ * transaction by hash, and build proofs. The raw RPC payloads remain
+ * untrusted; this checks local structure/root consistency, not consensus.
+ */
+export function buildInclusionProofFromRawBlock(
+  rawBlock: Hex,
+  rawReceipts: readonly Hex[],
+  expectedTransactionHash: Hex,
+): RawBlockInclusionProof {
+  if (typeof rawBlock !== "string" || !/^0x(?:[0-9a-fA-F]{2})+$/.test(rawBlock)) fail("Raw block must be non-empty even-length hex");
+  if ((rawBlock.length - 2) / 2 > MAX_RAW_BLOCK_BYTES) fail("Raw block exceeds 2 MB");
+  if (!/^0x[0-9a-fA-F]{64}$/.test(expectedTransactionHash)) fail("Expected transaction hash must be bytes32");
+
+  let decoded: DecodedRlp;
+  try {
+    decoded = fromRlp(rawBlock) as DecodedRlp;
+  } catch {
+    fail("Raw block is not valid RLP");
+  }
+  const block = asList(decoded, "Raw block");
+  if (block.length !== 3) fail("Raw block must contain header, transactions, and ommers");
+  if (toRlp(block as never, "hex").toLowerCase() !== rawBlock.toLowerCase()) fail("Raw block RLP is not canonical");
+
+  const header = asList(block[0], "Block header");
+  if (header.length < 15 || header.length > 32) fail("Block header has an unsupported field count");
+  const rawHeader = toRlp(header as never, "hex");
+  if ((rawHeader.length - 2) / 2 > MAX_HEADER_BYTES) fail("Block header exceeds 4 KiB");
+  const blockNumber = decodeHeaderNumber(header[8]);
+  const transactionRoot = asBytes(header[4], "Header transactionsRoot");
+  const receiptRoot = asBytes(header[5], "Header receiptsRoot");
+  if (!/^0x[0-9a-fA-F]{64}$/.test(transactionRoot) || !/^0x[0-9a-fA-F]{64}$/.test(receiptRoot)) {
+    fail("Header transaction and receipt roots must be bytes32");
+  }
+
+  const transactionItems = asList(block[1], "Block transactions");
+  if (transactionItems.length === 0 || transactionItems.length > MAX_ENTRIES || rawReceipts.length !== transactionItems.length) {
+    fail("Transaction and receipt counts must be equal, non-empty, and bounded");
+  }
+  const transactions = transactionItems.map((item, index) => {
+    const transaction = Array.isArray(item) ? toRlp(item as never, "hex") : asBytes(item, `Transaction ${index}`);
+    if (transaction === "0x") fail(`Transaction ${index} is empty`);
+    return transaction;
+  });
+  const matches: number[] = [];
+  transactions.forEach((transaction, index) => {
+    if (keccak256(transaction).toLowerCase() === expectedTransactionHash.toLowerCase()) matches.push(index);
+  });
+  if (matches.length !== 1) fail("Expected transaction hash must occur exactly once in the raw block");
+
+  const proofs = buildTransactionAndReceiptProofs(transactions, rawReceipts, matches[0]!);
+  if (proofs.transactionRoot.toLowerCase() !== transactionRoot.toLowerCase()) fail("Locally built transaction root differs from raw block header");
+  if (proofs.receiptRoot.toLowerCase() !== receiptRoot.toLowerCase()) fail("Locally built receipt root differs from raw block header");
+
+  return {
+    blockNumber,
+    rawHeader,
+    transactionIndex: matches[0]!,
+    transactionHash: expectedTransactionHash,
+    proofs,
   };
 }
