@@ -10,6 +10,8 @@ export type { PublishedReceipt, PublishReceiptInput } from "./publishReceipt.js"
 export { InvalidPaymentClaimError, parsePaymentClaim } from "./claim.js";
 export { buildInclusionProofFromRawBlock, buildTransactionAndReceiptProofs, MptProofInputError } from "./mptProof.js";
 export type { IndexedTrieProof, RawBlockInclusionProof, TransactionAndReceiptProofs } from "./mptProof.js";
+export { acquireRecentInclusionProof, InclusionProofAcquisitionError } from "./proofRpc.js";
+export type { AcquiredRecentInclusionProof, RecentInclusionProofInput } from "./proofRpc.js";
 export {
   ReceiptIntegrityError,
   ReceiptNotFoundError,
