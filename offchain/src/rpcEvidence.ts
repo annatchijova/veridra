@@ -190,7 +190,7 @@ async function rpcCall(url: string, method: string, params: readonly unknown[]):
     response = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+      body: JSON.stringify({ jsonrpc: "2.0", id: "veridra-rpc-1", method, params }),
       redirect: "error",
       signal: AbortSignal.timeout(RPC_TIMEOUT_MILLISECONDS),
     });
@@ -198,7 +198,7 @@ async function rpcCall(url: string, method: string, params: readonly unknown[]):
     fail(`RPC request failed for ${method}`);
   }
   const payload = await readBoundedJson(response);
-  if (!isObject(payload) || payload.jsonrpc !== "2.0" || payload.id !== 1) {
+  if (!isObject(payload) || payload.jsonrpc !== "2.0" || payload.id !== "veridra-rpc-1") {
     fail(`RPC returned an invalid envelope for ${method}`);
   }
   if (payload.error !== undefined) fail(`RPC reported an error for ${method}`);

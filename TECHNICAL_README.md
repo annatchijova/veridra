@@ -34,7 +34,7 @@ The exact encoding, canonicalization, and retention policy are open. For Level 1
 
 **Destination:** a payment-verification service for merchants, marketplaces, and automated agents. A client supplies a bounded payment claim; Veridra returns evidence, per-assertion outcomes, and a receipt that can be independently checked. The service must make its evidence source and trust assumptions visible. It must not turn a ledger fact into a claim about identity, contract performance, or legal discharge.
 
-Each level below is a coherent product state. None is a disposable prototype, and the later levels must extend earlier ones without bypassing their evidence or authorization rules. Level 1 has an initial Solidity adjudicator and immutable receipt registry; its RPC acquisition and supported transaction extraction path are not implemented, so Level 1 is not complete.
+Each level below is a coherent product state. None is a disposable prototype, and the later levels must extend earlier ones without bypassing their evidence or authorization rules. Level 1 has a Solidity adjudicator and immutable receipt registry plus a TypeScript RPC acquisition/publication library. It is not complete: no live integration, end-to-end run, user-facing caller, or selected production finality/token policy is present.
 
 The intended product has a normal public-evidence path and may have a separate selective-disclosure path. This diagram is conceptual; the privacy path exists only if Level 7 passes its entry conditions. Claim semantics remain stable as the authentication path improves.
 
@@ -60,7 +60,7 @@ Accept one Monad transaction hash and explicit assertions about one supported di
 
 **Implemented contract surface:** `src/PaymentAdjudicator.sol` compares the transaction hash, chain ID, execution status, and any asserted sender, recipient, asset, and amount. It preserves `PASS` / `FAIL` / `ABSTAIN`; a failed check produces `NOT_VERIFIED`, and missing or insufficiently final evidence produces `INSUFFICIENT_EVIDENCE`. `src/VeridraReceiptRegistry.sol` accepts submissions from one immutable publisher, evaluates them against `block.chainid`, and stores a version-1 receipt with `RPC_ATTESTED`, source ID, observation time, evidence digests, checks, and verdict. Repeated identical submissions return the same receipt ID.
 
-**Trust boundary:** the contract does not call an RPC or authenticate the publisher/provider. The publisher supplies normalized facts, raw-payload digests, provider identity, and its finality-policy observations. The contract deterministically compares and records those inputs; it cannot prove those inputs came from the named RPC. The finality fields are publisher assertions, not an onchain confirmation check. The receipt is an immutable record of that publisher's submission and the contract's comparison.
+**Trust boundary:** the contract does not call an RPC or authenticate the publisher/provider. The publisher supplies normalized facts, digests of canonically serialized RPC result objects, provider identity, and its finality-policy observations. The contract deterministically compares and records those inputs; it cannot prove those inputs came from the named RPC. The finality fields are publisher assertions, not an onchain confirmation check. The receipt is an immutable record of that publisher's submission and the contract's comparison.
 
 **Complete when:** the Monad RPC producer, publisher flow, and receipt consumer operate together; cross-consistency among transaction, receipt, and containing block is checked; native MON and allowlisted-token extraction follow the rules above; unsupported or ambiguous evidence fails closed; the RPC result objects can be canonically serialized and matched to their recorded digests; and an independent consumer can read and check the versioned receipt. Reorganization/finality policy, token identity, and RPC trust limits must be specified. This level does not infer invoice references, arbitrary token semantics, identity, or delivery.
 
@@ -130,7 +130,7 @@ flowchart LR
     J --> R
 ```
 
-`offchain/src/rpcEvidence.ts` implements bounded JSON-RPC acquisition and extraction for a single payment fact. The current Solidity contracts implement deterministic adjudication over normalized facts and immutable receipt recording; they do not fetch RPC data or authenticate the provider response. No publisher CLI currently connects these components.
+`offchain/src/rpcEvidence.ts` implements bounded JSON-RPC acquisition and extraction for a single payment fact. `offchain/src/publishReceipt.ts` connects acquisition to the registry, checks chain/schema/publisher, simulates the call, submits it through a caller-supplied wallet client, and handles duplicate publication. The viem ABI is exported from the Foundry artifact with `scripts/export_abi.py`. The Solidity contracts implement deterministic adjudication over normalized facts and immutable receipt recording; they do not fetch RPC data or authenticate the provider response. A CLI and live integration run are still absent.
 
 ### Level 1 component boundary
 
@@ -196,8 +196,8 @@ The Solidity contracts compile with solc 0.8.24, optimizer enabled, and `viaIR: 
 - **Code fact:** absent evidence or a missing/unsatisfied publisher-declared finality policy produces `INSUFFICIENT_EVIDENCE`; with usable evidence, any failed check yields `NOT_VERIFIED`; unspecified optional assertions remain `ABSTAIN`.
 - **Accepted trust boundary:** the publisher can fabricate transaction facts, payload digests, provider identity, and confirmation counts, then obtain `VERIFIED` if those fabricated values match the claim. This follows from the declared RPC-attested trust model; the contract does not authenticate them.
 - **Operational risk:** the publisher address cannot rotate. Losing its key stops new receipt publication; a future rotation mechanism needs explicit authority and receipt-version semantics.
-- **Not verified:** runtime state transitions, gas behavior, and the eventual RPC extraction path. Compilation was checked; tests and deployment were not run.
+- **Not verified:** runtime state transitions, gas behavior, or the RPC extraction/publication flow against a live node. Compilation and type checking were run; tests and deployment were not.
 
 ## Source context
 
-PROOF is the conceptual reference: a local Python/Stellar project with claim validation, evidence extraction, per-field adjudication, three verdicts, and sealed bundles. Veridra is a new Solidity-oriented implementation for an EVM chain. No source code from PROOF is copied into this repository.
+PROOF is the conceptual reference: a local Python/Stellar project with claim validation, evidence extraction, per-field adjudication, three verdicts, and sealed bundles. Veridra is a new Solidity and TypeScript implementation for an EVM chain. No source code from PROOF is copied into this repository.
