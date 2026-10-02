@@ -7,3 +7,4 @@ export type {
 } from "./rpcEvidence.js";
 export { publishReceipt, ReceiptPublicationError } from "./publishReceipt.js";
 export type { PublishedReceipt, PublishReceiptInput } from "./publishReceipt.js";
+export { InvalidPaymentClaimError, parsePaymentClaim } from "./claim.js";

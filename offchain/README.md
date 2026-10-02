@@ -19,6 +19,7 @@ After changing the Solidity registry ABI, run `forge build` from the repository 
 ## Library boundary
 
 - `acquirePaymentEvidence()` checks the configured chain ID and cross-consistency among the transaction, receipt, and containing block. It bounds each HTTP response, times out RPC calls, and extracts one supported payment fact.
+- `parsePaymentClaim()` turns JSON input into the Solidity claim tuple. Optional fields become explicit abstentions encoded with zero values; chain IDs and token amounts must be decimal strings, never JSON numbers. The publisher and registry reject noncanonical values for abstained fields.
 - `publishReceipt()` checks the public and wallet client chains, registry schema and assurance, and immutable publisher address; simulates the write; submits it with the caller-provided wallet client; and resolves both first-time and idempotent publications.
 - The caller creates and protects the wallet client. This package never reads or writes private keys.
 

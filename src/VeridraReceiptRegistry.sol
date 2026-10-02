@@ -83,7 +83,13 @@ contract VeridraReceiptRegistry {
         uint64 observedAt
     ) external returns (bytes32 receiptId) {
         if (msg.sender != publisher) revert UnauthorizedPublisher(msg.sender);
-        if (claim.transactionHash == bytes32(0) || claim.chainId == 0) {
+        if (
+            claim.transactionHash == bytes32(0) || claim.chainId == 0
+                || (!claim.assertsSender && claim.sender != address(0))
+                || (!claim.assertsRecipient && claim.recipient != address(0))
+                || (!claim.assertsAsset && claim.asset != address(0))
+                || (!claim.assertsAmount && claim.amount != 0)
+        ) {
             revert InvalidClaim();
         }
         if (providerId == bytes32(0) || observedAt == 0) {

@@ -17,6 +17,7 @@ import {
 } from "./rpcEvidence.js";
 
 const MAX_UINT256 = (1n << 256n) - 1n;
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as Address;
 
 export type PublishReceiptInput = {
   claim: PaymentClaim;
@@ -59,12 +60,23 @@ function requireCondition(condition: boolean, message: string): asserts conditio
 }
 
 function validateClaim(claim: PaymentClaim): void {
+  requireCondition(typeof claim.transactionHash === "string", "Claim transaction hash must be a string");
   requireCondition(/^0x[0-9a-fA-F]{64}$/.test(claim.transactionHash), "Claim transaction hash must be bytes32");
+  requireCondition(typeof claim.chainId === "bigint", "Claim chain ID must be bigint");
   requireCondition(claim.chainId > 0n && claim.chainId <= MAX_UINT256, "Claim chain ID is outside uint256");
+  requireCondition(typeof claim.amount === "bigint", "Claim amount must be bigint base units");
   requireCondition(claim.amount >= 0n && claim.amount <= MAX_UINT256, "Claim amount is outside uint256 base units");
+  requireCondition(typeof claim.assertsSender === "boolean", "assertsSender must be boolean");
+  requireCondition(typeof claim.assertsRecipient === "boolean", "assertsRecipient must be boolean");
+  requireCondition(typeof claim.assertsAsset === "boolean", "assertsAsset must be boolean");
+  requireCondition(typeof claim.assertsAmount === "boolean", "assertsAmount must be boolean");
   getAddress(claim.sender);
   getAddress(claim.recipient);
   getAddress(claim.asset);
+  requireCondition(claim.assertsSender || claim.sender.toLowerCase() === ZERO_ADDRESS, "Unasserted sender must use the zero address");
+  requireCondition(claim.assertsRecipient || claim.recipient.toLowerCase() === ZERO_ADDRESS, "Unasserted recipient must use the zero address");
+  requireCondition(claim.assertsAsset || claim.asset.toLowerCase() === ZERO_ADDRESS, "Unasserted asset must use the zero address");
+  requireCondition(claim.assertsAmount || claim.amount === 0n, "Unasserted amount must be zero");
 }
 
 const VERDICTS = ["VERIFIED", "NOT_VERIFIED", "INSUFFICIENT_EVIDENCE"] as const;
