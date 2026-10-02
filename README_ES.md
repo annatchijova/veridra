@@ -8,7 +8,7 @@ Veridra verifica afirmaciones de pago en Monad: compara una afirmación estructu
 
 ## Un ejemplo concreto
 
-El ejemplo describe el comportamiento deseado; no es una demo ejecutable.
+El ejemplo es ilustrativo (un pago en token para el que el Nivel 1 todavía no tiene evidencia en vivo); un ejemplo real, corrido en vivo contra Monad testnet con una transferencia nativa de MON, está en "En vivo en Monad testnet" más abajo.
 
 ```text
 Afirmación: se transfirieron 100 USDC de Alice a Bob
@@ -22,7 +22,7 @@ Si la transferencia fue a otra dirección, el resultado debería ser `NOT_VERIFI
 
 Veridra se limita a hechos que puedan vincularse con la evidencia de la cadena seleccionada. El resultado del ledger no establece por sí solo quién controlaba una wallet, si una factura quedó legalmente saldada ni si se entregaron bienes o servicios. Una afirmación solo puede verificarse hasta donde lo permitan los datos de la transacción y la fuente de evidencia elegida.
 
-El núcleo de contratos del Nivel 1 y la biblioteca TypeScript de adquisición y publicación RPC están implementados. Los contratos compilan con Solidity 0.8.24 usando la configuración `via_ir` del repositorio. Todavía falta un CLI, las pruebas, la verificación contra un RPC real y el despliegue. Consulta el [diseño técnico y las decisiones abiertas](TECHNICAL_README.md).
+El núcleo de contratos del Nivel 1 y la biblioteca TypeScript de adquisición y publicación RPC están implementados. Los contratos compilan con Solidity 0.8.24 usando la configuración `via_ir` del repositorio. 33 tests de Foundry (`forge test`) ejercitan el adjudicador y el registry contra sus invariantes documentados, y 28 tests de Node.js (`npm test` en `offchain/`) ejercitan el parsing de afirmaciones, la adquisición de evidencia RPC y la verificación independiente de recibos, incluyendo chequeos de fail-closed y determinismo. Un CLI mínimo (`node dist/cli.js verify <receiptId> ...` / `publish ...`) envuelve la biblioteca de adquisición, publicación y verificación independiente, y ya corrió en vivo contra Monad testnet — ver "En vivo en Monad testnet" más abajo. Consulta el [diseño técnico y las decisiones abiertas](TECHNICAL_README.md).
 
 El primer camino de evidencia tiene un alcance deliberado: el Nivel 1 usa evidencia obtenida por RPC y atribuye explícitamente su fuente. El recibo no afirma que sea trustless. Los niveles posteriores fortalecen la autenticación de esa misma evidencia sin cambiar el significado de una afirmación de pago. El [registro de decisiones arquitectónicas](docs/ARCHITECTURE_FRACTURE.md) explica la progresión y sus límites.
 
@@ -51,12 +51,46 @@ Cada nivel debe ser útil por sí mismo e incluir las reglas de integridad, auto
 
 La comparación de afirmaciones permanece estable mientras mejora la autenticación de evidencia. Cada recibo separa el `verdict` acotado de la etiqueta `evidence_assurance`: por ejemplo, `VERIFIED` respecto de la evidencia obtenida puede coexistir con `RPC_ATTESTED`. Los contratos inteligentes no pueden leer logs históricos directamente; el modelo y sus límites están en el [Technical README](TECHNICAL_README.md).
 
-## Estado actual
-
-La dirección de producto adapta semánticas útiles de PROOF —afirmaciones explícitas, `PASS` / `FAIL` / `ABSTAIN` y veredictos generales distintos— a evidencia de transacciones EVM. Veridra se implementa en Solidity y TypeScript; no es un port del código fuente. Se ejecutaron la compilación Solidity y el chequeo de tipos TypeScript; todavía no se verificaron el comportamiento en ejecución, las respuestas RPC, la publicación end-to-end ni el despliegue.
-
 La biblioteca offchain y sus instrucciones están en [`offchain/README.md`](offchain/README.md).
 
 Los montos son enteros exactos en la unidad mínima del activo. No se usa aritmética de punto flotante.
 
+## Desplegando en Monad testnet
+
+```bash
+cp .env.example .env   # completá PRIVATE_KEY (una cuenta de Monad testnet fondeada)
+source .env
+
+forge script script/Deploy.s.sol \
+  --rpc-url monad_testnet \
+  --broadcast \
+  --verify --verifier sourcify --verifier-url https://sourcify-api-monad.blockvision.org/
+```
+
+Necesita una cuenta de Monad testnet fondeada con MON desde [faucet.monad.xyz](https://faucet.monad.xyz). `.env` está en `.gitignore`; nunca lo commitees.
+
+## En vivo en Monad testnet
+
+`VeridraReceiptRegistry` está desplegado y verificado en Sourcify (`exact_match`) en
+[`0x2a78a4542CC70929DCd8e7a8dE096588F7607f61`](https://testnet.monadexplorer.com/address/0x2a78a4542CC70929DCd8e7a8dE096588F7607f61),
+publisher `0x298b1699B81660B027aF05A70b3B10CCaCdd2063`.
+
+Ejercitado en vivo de punta a punta contra una transacción real — una transferencia nativa de 0.01 MON,
+[`0x27d5f9bd45f4022cd87a343c29218e4d6671fbfad626aeafe56fd28f5142fba6`](https://testnet.monadexplorer.com/tx/0x27d5f9bd45f4022cd87a343c29218e4d6671fbfad626aeafe56fd28f5142fba6) — por el camino feliz y el adversarial:
+
+| Afirmación contra la misma transacción real | Resultado del CLI `verify` |
+|---|---|
+| Sender, recipient y amount correctos | `VERIFIED`, todos los checks afirmados en `PASS` |
+| Sender y amount correctos, recipient deliberadamente incorrecto | `NOT_VERIFIED`, check `recipient` en `FAIL`, el resto de los checks afirmados en `PASS` |
+
+Ambos recibos fueron re-verificados de forma independiente con `node dist/cli.js verify <receiptId>` — una recomputación en TypeScript hecha desde cero, no una segunda llamada a la misma lógica del contrato — y coincidieron con lo que el registry tenía almacenado en los dos casos.
+
+## Estado actual
+
+La dirección de producto adapta semánticas útiles de PROOF —afirmaciones explícitas, `PASS` / `FAIL` / `ABSTAIN` y veredictos generales distintos— a evidencia de transacciones EVM. Veridra se implementa en Solidity y TypeScript; no es un port del código fuente. Se ejecutaron y pasaron la compilación Solidity, el chequeo de tipos TypeScript, 33 tests de Foundry y 28 tests de Node.js. El pipeline completo —adquisición de evidencia RPC, publicación onchain y verificación independiente— también corrió en vivo contra una transacción real de Monad testnet y el registry desplegado arriba, tanto en el camino `VERIFIED` como en el `NOT_VERIFIED`. El Nivel 2 en adelante (pruebas de inclusión por blockhash, historial de raíz persistente, expectativas de pago previas, integración con un comercio, formas de transacción adicionales, el recibo privado opcional) todavía no está construido.
+
 Para la arquitectura, los límites de confianza, las decisiones y las formas de refutar el diseño, consulta el **[Technical README](TECHNICAL_README.md)**.
+
+## Licencia
+
+Apache-2.0 — ver [`LICENSE`](LICENSE). Las reglas del Monad Hackathon exigen una licencia aprobada por OSI (MIT, Apache 2.0, GPL o similar) mantenida públicamente accesible en GitHub durante y después del hackathon.

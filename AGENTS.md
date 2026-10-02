@@ -36,4 +36,4 @@ Follow the `destination-driven-construction` skill. The destination is the compl
 
 Keep the public introduction in `README.md`, its Spanish adaptation in `README_ES.md`, and full design/invariants/decisions in `TECHNICAL_README.md`. Order the public README from problem to observable behavior to mechanism to evidence; scope every capability claim to what exists and has been checked.
 
-Do not add a `LICENSE` file or SPDX license identifier until the maintainer explicitly decides the licensing terms. Do not copy PROOF's license or source files into this repository.
+Licensed Apache-2.0 (decided 2026-10-01, matching the Monad Hackathon's OSI-approved-license requirement): see `LICENSE` and the `SPDX-License-Identifier` line at the top of every Solidity file. Do not copy PROOF's license or source files into this repository.
