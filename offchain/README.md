@@ -10,9 +10,10 @@ Requires Node.js 22 or newer.
 npm ci --ignore-scripts
 npm run typecheck
 npm run build
+npm test
 ```
 
-`npm ci` uses the committed lockfile. Install scripts are disabled because the dependency tree does not require them.
+`npm ci` uses the committed lockfile. Install scripts are disabled because the dependency tree does not require them. `npm test` builds and runs the Node.js built-in test runner (`node --test`) against the compiled output in `dist/`; no additional test framework dependency is installed.
 
 After changing the Solidity registry ABI, run `forge build` from the repository root and then `python3 scripts/export_abi.py` to refresh the viem ABI from the Foundry artifact.
 

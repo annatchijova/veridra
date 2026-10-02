@@ -22,7 +22,7 @@ If the transfer went to a different address, the result should be `NOT_VERIFIED`
 
 Veridra is scoped to facts that can be tied to the selected chain evidence. A ledger result does not by itself establish who controlled a wallet, whether an invoice was legally satisfied, or whether goods or services were delivered. A claim can only be checked to the extent that the transaction data and the chosen evidence source support it.
 
-The Level 1 Solidity contract core and TypeScript RPC acquisition/publication library are implemented. The contracts compile with Solidity 0.8.24 using the repository's `via_ir` setting. A CLI, tests, live RPC verification, and deployment are still pending. See the [technical design and open decisions](TECHNICAL_README.md).
+The Level 1 Solidity contract core and TypeScript RPC acquisition/publication library are implemented. The contracts compile with Solidity 0.8.24 using the repository's `via_ir` setting. 33 Foundry tests (`forge test`) exercise the adjudicator and registry against their documented invariants, and 19 Node.js tests (`npm test` in `offchain/`) exercise claim parsing and RPC evidence acquisition, including fail-closed and determinism checks. A CLI, live RPC verification against a real Monad node, and deployment are still pending. See the [technical design and open decisions](TECHNICAL_README.md).
 
 The first evidence path is deliberately scoped: Level 1 uses RPC-acquired evidence with explicit source attribution. Its receipt does not claim trustlessness. Later levels strengthen how the same evidence is authenticated, without changing what a payment claim means. The [architecture decision record](docs/ARCHITECTURE_FRACTURE.md) explains the progression and its limits.
 

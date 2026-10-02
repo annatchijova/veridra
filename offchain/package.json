@@ -15,12 +15,14 @@
   },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test dist/*.test.js"
   },
   "dependencies": {
     "viem": "2.57.2"
   },
   "devDependencies": {
+    "@types/node": "^22.20.5",
     "typescript": "5.8.3"
   }
 }
