@@ -183,7 +183,18 @@ export async function derivePaymentFactFromRawValues(
   const rawTransaction = checkedRawHex(rawTransactionInput, "Raw transaction");
   const rawReceipt = checkedRawHex(rawReceiptInput, "Raw receipt");
   if (typeof expectedChainId !== "bigint" || expectedChainId <= 0n || expectedChainId > MAX_UINT256) fail("Expected chain ID must fit a positive uint256");
-  if (!Array.isArray(supportedTokenAddresses) || supportedTokenAddresses.length > MAX_TOKEN_ALLOWLIST) fail(`Token allowlist must be an array of at most ${MAX_TOKEN_ALLOWLIST} entries`);
+  if (!Array.isArray(supportedTokenAddresses)) fail("Token allowlist must be an array");
+  const tokenAddressCount = supportedTokenAddresses.length;
+  if (tokenAddressCount > MAX_TOKEN_ALLOWLIST) fail(`Token allowlist must contain at most ${MAX_TOKEN_ALLOWLIST} entries`);
+  let tokenAddressSnapshot: Address[];
+  try {
+    tokenAddressSnapshot = [];
+    for (let index = 0; index < tokenAddressCount; index++) {
+      tokenAddressSnapshot.push(supportedTokenAddresses[index]!);
+    }
+  } catch {
+    fail("Token allowlist could not be snapshotted");
+  }
 
   const type = transactionType(rawTransaction);
   canonicalTransactionPayload(rawTransaction, type);
@@ -206,7 +217,7 @@ export async function derivePaymentFactFromRawValues(
   const input = parsed.data ?? "0x";
   let allowedTokens: Set<string>;
   try {
-    allowedTokens = new Set(supportedTokenAddresses.map((address) => getAddress(address).toLowerCase()));
+    allowedTokens = new Set(tokenAddressSnapshot.map((address) => getAddress(address).toLowerCase()));
   } catch {
     fail("Token allowlist contains an invalid address");
   }

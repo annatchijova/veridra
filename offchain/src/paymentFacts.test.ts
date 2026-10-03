@@ -7,6 +7,7 @@ import { derivePaymentFactFromRawValues, RawPaymentFactError } from "./paymentFa
 const CHAIN_ID = 10143n;
 const ACCOUNT = privateKeyToAccount("0x0000000000000000000000000000000000000000000000000000000000000001");
 const TOKEN = "0x00000000000000000000000000000000000000aa" as Address;
+const OTHER_TOKEN = "0x00000000000000000000000000000000000000cc" as Address;
 const RECIPIENT = "0x00000000000000000000000000000000000000bb" as Address;
 const TRANSFER_TOPIC = keccak256(stringToHex("Transfer(address,address,uint256)"));
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
@@ -68,6 +69,32 @@ test("extracts exactly one allowlisted direct ERC-20 Transfer from typed bytes",
   assert.equal(fact.asset, getAddress(TOKEN));
   assert.equal(fact.amount, 987n);
   assert.equal(fact.successful, true);
+});
+
+test("snapshots the token allowlist before asynchronous signer recovery", async () => {
+  const rawTransaction = await ACCOUNT.signTransaction({
+    type: "eip1559",
+    chainId: Number(CHAIN_ID),
+    nonce: 2,
+    maxFeePerGas: 2n,
+    maxPriorityFeePerGas: 1n,
+    gas: 60_000n,
+    to: TOKEN,
+    value: 0n,
+    data: "0xa9059cbb",
+  });
+  const rawLog = [
+    TOKEN as Hex,
+    [TRANSFER_TOPIC, topicAddress(ACCOUNT.address), topicAddress(RECIPIENT)],
+    encodeAbiParameters([{ type: "uint256" }], [5n]),
+  ] as const;
+  const allowlist = [TOKEN];
+  const pendingFact = derivePaymentFactFromRawValues(rawTransaction, rawReceipt([rawLog], "0x02"), CHAIN_ID, allowlist);
+  allowlist[0] = OTHER_TOKEN;
+
+  const fact = await pendingFact;
+  assert.equal(fact.asset, getAddress(TOKEN));
+  assert.equal(fact.amount, 5n);
 });
 
 test("fails closed on unsupported transaction types and chain mismatch", async () => {

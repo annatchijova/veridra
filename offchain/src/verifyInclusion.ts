@@ -1,10 +1,16 @@
-import { getAddress, type Address, type PublicClient } from "viem";
+import { getAddress, type Address, type Hex, type PublicClient } from "viem";
 import { recentInclusionVerifierAbi } from "./abi/recentInclusionVerifierAbi.js";
 import { derivePaymentFactFromRawValues, type RawPaymentFact } from "./paymentFacts.js";
 import type { AcquiredRecentInclusionProof } from "./proofRpc.js";
 
 const MAX_UINT64 = (1n << 64n) - 1n;
 const MAX_SAFE_CHAIN_ID = BigInt(Number.MAX_SAFE_INTEGER);
+const MAX_PROOF_NODES = 20;
+const MAX_NODE_BYTES = 8_256;
+const MAX_PROOF_BYTES = 40_000;
+const MAX_VALUE_BYTES = 8_192;
+const MAX_HEADER_BYTES = 4_096;
+const MAX_TOKEN_ALLOWLIST = 64;
 
 export type VerifyRecentInclusionInput = {
   publicClient: PublicClient;
@@ -36,6 +42,64 @@ function requireCondition(condition: boolean, message: string): asserts conditio
   if (!condition) throw new RecentInclusionVerificationError(message);
 }
 
+function boundedHex(value: unknown, label: string, maximumBytes: number): Hex {
+  requireCondition(
+    typeof value === "string" && /^0x(?:[0-9a-fA-F]{2})+$/.test(value),
+    `${label} must be non-empty even-length hex`,
+  );
+  requireCondition((value.length - 2) / 2 <= maximumBytes, `${label} exceeds its configured byte bound`);
+  return value as Hex;
+}
+
+function snapshotProofNodes(value: unknown, label: string): Hex[] {
+  requireCondition(Array.isArray(value), `${label} nodes must be an array`);
+  const nodeCount = value.length;
+  requireCondition(nodeCount > 0 && nodeCount <= MAX_PROOF_NODES, `${label} node count is outside bounds`);
+  let totalBytes = 0;
+  const snapshot: Hex[] = [];
+  for (let index = 0; index < nodeCount; index++) {
+    const node = (value as unknown[])[index];
+    const rawNode = boundedHex(node, `${label} node`, MAX_NODE_BYTES);
+    totalBytes += (rawNode.length - 2) / 2;
+    requireCondition(totalBytes <= MAX_PROOF_BYTES, `${label} exceeds its configured total byte bound`);
+    snapshot.push(rawNode);
+  }
+  return snapshot;
+}
+
+function snapshotProof(source: AcquiredRecentInclusionProof): AcquiredRecentInclusionProof {
+  requireCondition(source !== null && typeof source === "object", "Inclusion proof must be an object");
+  requireCondition(source.proofs !== null && typeof source.proofs === "object", "Inclusion proof paths are missing");
+  const transaction = source.proofs.transaction;
+  const receipt = source.proofs.receipt;
+  requireCondition(transaction !== null && typeof transaction === "object", "Transaction proof is missing");
+  requireCondition(receipt !== null && typeof receipt === "object", "Receipt proof is missing");
+  const transactionValue = boundedHex(transaction.value, "Transaction value", MAX_VALUE_BYTES);
+  const receiptValue = boundedHex(receipt.value, "Receipt value", MAX_VALUE_BYTES);
+  const rawHeader = boundedHex(source.rawHeader, "Raw header", MAX_HEADER_BYTES);
+  const transactionPath = snapshotProofNodes(transaction.proof, "Transaction proof");
+  const receiptPath = snapshotProofNodes(receipt.proof, "Receipt proof");
+  const attachedFact = source.paymentFact !== null && typeof source.paymentFact === "object"
+    ? { ...source.paymentFact }
+    : source.paymentFact;
+
+  return {
+    chainId: source.chainId,
+    blockNumber: source.blockNumber,
+    blockHash: source.blockHash,
+    rawHeader,
+    transactionIndex: source.transactionIndex,
+    transactionHash: source.transactionHash,
+    paymentFact: attachedFact,
+    proofs: {
+      transactionRoot: source.proofs.transactionRoot,
+      receiptRoot: source.proofs.receiptRoot,
+      transaction: { root: transaction.root, index: transaction.index, value: transactionValue, proof: transactionPath },
+      receipt: { root: receipt.root, index: receipt.index, value: receiptValue, proof: receiptPath },
+    },
+  };
+}
+
 /**
  * Ask the deployed verifier to authenticate a locally acquired inclusion
  * proof against this chain's BLOCKHASH window, then re-derives and checks the
@@ -45,41 +109,53 @@ function requireCondition(condition: boolean, message: string): asserts conditio
 export async function verifyRecentInclusionOnchain(
   input: VerifyRecentInclusionInput,
 ): Promise<OnchainRecentInclusionResult> {
+  const expectedChainId = input.expectedChainId;
+  const proof = snapshotProof(input.proof);
+  const tokenAddressInput = input.supportedTokenAddresses;
+  requireCondition(Array.isArray(tokenAddressInput), "Token allowlist must be an array");
+  const tokenCount = tokenAddressInput.length;
+  requireCondition(tokenCount <= MAX_TOKEN_ALLOWLIST, `Token allowlist must contain at most ${MAX_TOKEN_ALLOWLIST} entries`);
+  const supportedTokenAddresses: Address[] = [];
+  for (let index = 0; index < tokenCount; index++) {
+    supportedTokenAddresses.push(tokenAddressInput[index]!);
+  }
+  const publicClient = input.publicClient;
+  const verifierAddress = getAddress(input.verifierAddress);
   requireCondition(
-    input.expectedChainId > 0n && input.expectedChainId <= MAX_SAFE_CHAIN_ID,
+    expectedChainId > 0n && expectedChainId <= MAX_SAFE_CHAIN_ID,
     "Expected chain ID must be a positive safely representable integer",
   );
-  requireCondition(input.proof.chainId === input.expectedChainId, "Proof was acquired from a different configured chain");
-  requireCondition(input.proof.blockNumber >= 0n && input.proof.blockNumber <= MAX_UINT64, "Proof block number is outside uint64");
+  requireCondition(proof.chainId === expectedChainId, "Proof was acquired from a different configured chain");
+  requireCondition(proof.blockNumber >= 0n && proof.blockNumber <= MAX_UINT64, "Proof block number is outside uint64");
   requireCondition(
-    Number.isSafeInteger(input.proof.transactionIndex)
-      && input.proof.transactionIndex >= 0
-      && BigInt(input.proof.transactionIndex) <= MAX_UINT64,
+    Number.isSafeInteger(proof.transactionIndex)
+      && proof.transactionIndex >= 0
+      && BigInt(proof.transactionIndex) <= MAX_UINT64,
     "Proof transaction index is outside uint64",
   );
-  requireCondition(/^0x[0-9a-fA-F]{64}$/.test(input.proof.blockHash), "Proof block hash must be bytes32");
-  requireCondition(/^0x[0-9a-fA-F]{64}$/.test(input.proof.transactionHash), "Proof transaction hash must be bytes32");
+  requireCondition(/^0x[0-9a-fA-F]{64}$/.test(proof.blockHash), "Proof block hash must be bytes32");
+  requireCondition(/^0x[0-9a-fA-F]{64}$/.test(proof.transactionHash), "Proof transaction hash must be bytes32");
   requireCondition(
-    input.proof.proofs.transaction.index === input.proof.transactionIndex
-      && input.proof.proofs.receipt.index === input.proof.transactionIndex,
+    proof.proofs.transaction.index === proof.transactionIndex
+      && proof.proofs.receipt.index === proof.transactionIndex,
     "Transaction and receipt proofs must use the same target index",
   );
   let paymentFact: RawPaymentFact;
   try {
     paymentFact = await derivePaymentFactFromRawValues(
-      input.proof.proofs.transaction.value,
-      input.proof.proofs.receipt.value,
-      input.expectedChainId,
-      input.supportedTokenAddresses,
+      proof.proofs.transaction.value,
+      proof.proofs.receipt.value,
+      expectedChainId,
+      supportedTokenAddresses,
     );
   } catch {
     throw new RecentInclusionVerificationError("Included transaction and receipt do not yield a supported payment fact");
   }
-  const attachedFact = input.proof.paymentFact;
+  const attachedFact = proof.paymentFact;
   requireCondition(
     attachedFact !== null && typeof attachedFact === "object"
-      && paymentFact.transactionHash.toLowerCase() === input.proof.transactionHash.toLowerCase()
-      && paymentFact.chainId === input.proof.chainId
+      && paymentFact.transactionHash.toLowerCase() === proof.transactionHash.toLowerCase()
+      && paymentFact.chainId === proof.chainId
       && paymentFact.transactionHash.toLowerCase() === attachedFact.transactionHash.toLowerCase()
       && paymentFact.chainId === attachedFact.chainId
       && paymentFact.transactionType === attachedFact.transactionType
@@ -91,36 +167,35 @@ export async function verifyRecentInclusionOnchain(
     "Attached payment fact differs from the decoded included transaction and receipt",
   );
 
-  const verifierAddress = getAddress(input.verifierAddress);
-  const clientChainId = await input.publicClient.getChainId();
+  const clientChainId = await publicClient.getChainId();
   requireCondition(Number.isSafeInteger(clientChainId), "Public client returned an unsafe chain ID");
-  requireCondition(BigInt(clientChainId) === input.expectedChainId, "Public client is connected to a different chain");
+  requireCondition(BigInt(clientChainId) === expectedChainId, "Public client is connected to a different chain");
 
-  const verified = await input.publicClient.readContract({
+  const verified = await publicClient.readContract({
     address: verifierAddress,
     abi: recentInclusionVerifierAbi,
     functionName: "verifyRecentInclusion",
     args: [
-      input.proof.blockNumber,
-      input.proof.blockHash,
-      input.proof.rawHeader,
-      BigInt(input.proof.transactionIndex),
-      input.proof.transactionHash,
-      input.proof.proofs.transaction.value,
-      input.proof.proofs.transaction.proof,
-      input.proof.proofs.receipt.value,
-      input.proof.proofs.receipt.proof,
+      proof.blockNumber,
+      proof.blockHash,
+      proof.rawHeader,
+      BigInt(proof.transactionIndex),
+      proof.transactionHash,
+      proof.proofs.transaction.value,
+      proof.proofs.transaction.proof,
+      proof.proofs.receipt.value,
+      proof.proofs.receipt.proof,
     ],
   });
   requireCondition(verified === true, "Onchain inclusion verifier did not affirm the proof");
 
   return {
     verification: "RPC_REPORTED_RECENT_INCLUSION_ACCEPTED",
-    chainId: input.expectedChainId,
-    blockNumber: input.proof.blockNumber,
-    blockHash: input.proof.blockHash,
-    transactionHash: input.proof.transactionHash,
-    transactionIndex: input.proof.transactionIndex,
+    chainId: expectedChainId,
+    blockNumber: proof.blockNumber,
+    blockHash: proof.blockHash,
+    transactionHash: proof.transactionHash,
+    transactionIndex: proof.transactionIndex,
     paymentFact,
   };
 }

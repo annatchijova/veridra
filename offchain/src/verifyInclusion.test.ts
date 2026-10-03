@@ -128,3 +128,39 @@ test("rejects a forged attached payment fact before calling the verifier", async
   );
   assert.equal(called, false);
 });
+
+test("uses a snapshot when the caller mutates the proof during the chain check", async () => {
+  const proof = await acquiredProof();
+  const originalHash = proof.transactionHash;
+  const originalTransaction = proof.proofs.transaction.value;
+  const replacementHash = `0x${"99".repeat(32)}` as Hex;
+  let sentHash: Hex | undefined;
+  let sentTransaction: Hex | undefined;
+  const publicClient = {
+    getChainId: async () => {
+      proof.transactionHash = replacementHash;
+      proof.paymentFact.amount = 999n;
+      proof.proofs.transaction.value = "0x03";
+      return Number(CHAIN_ID);
+    },
+    readContract: async (request: { args: readonly unknown[] }) => {
+      sentHash = request.args[4] as Hex;
+      sentTransaction = request.args[5] as Hex;
+      return true;
+    },
+  } as unknown as PublicClient;
+
+  const result = await verifyRecentInclusionOnchain({
+    publicClient,
+    verifierAddress: VERIFIER,
+    expectedChainId: CHAIN_ID,
+    proof,
+    supportedTokenAddresses: [],
+  });
+
+  assert.equal(sentHash, originalHash);
+  assert.equal(sentTransaction, originalTransaction);
+  assert.equal(result.transactionHash, originalHash);
+  assert.equal(result.paymentFact.transactionHash, originalHash);
+  assert.equal(result.paymentFact.amount, 123n);
+});

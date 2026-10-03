@@ -23,6 +23,27 @@ test("two-entry tries embed short leaf nodes and produce one root-only proof pat
   assert.equal(result.receipt.index, 1);
 });
 
+test("sixteen-entry tries produce stable hashed-branch paths used by the Solidity verifier tests", () => {
+  const transactions = Array.from({ length: 16 }, (_, index) => `0x${(index + 1).toString(16).padStart(2, "0")}${"03".repeat(63)}` as Hex);
+  const receipts = Array.from({ length: 16 }, (_, index) => `0x${(index + 1).toString(16).padStart(2, "0")}${"04".repeat(63)}` as Hex);
+  const result = buildTransactionAndReceiptProofs(transactions, receipts, 1);
+
+  assert.equal(result.transactionRoot, "0x73f85cd60cd3b617472f3ad33fb4a740789d2ce9905f049017843a4a913c1b47");
+  assert.equal(result.receiptRoot, "0x10fd7dfb8738377d964c8e9c4354e72c4236fb7856a7e9e45ae6263d78e972dd");
+  assert.deepEqual(result.transaction.proof.map((node) => keccak256(node)), [
+    result.transactionRoot,
+    "0x93371523351f0a7b7751ccfbc8268481c36a7c7a6f0131030be1d1d8e872b52f",
+    "0x8e2f9326a7e5789f60da780e867067c3c14ac0557bb787287847db8c2036f1f0",
+  ]);
+  assert.deepEqual(result.receipt.proof.map((node) => keccak256(node)), [
+    result.receiptRoot,
+    "0xda93a91d97a9d97395fdd910822e77a89c956affa97fc8a09732a3fac8ff29a6",
+    "0x623fdf12b5ab3ae4ec53c5a8f79649c6fa9bd0d4d460caf4fd5bb26c575ca84e",
+  ]);
+  assert.equal(result.transaction.value, transactions[1]);
+  assert.equal(result.receipt.value, receipts[1]);
+});
+
 test("rejects empty, malformed, mismatched, and out-of-range proof inputs", () => {
   const reject = (transactions: readonly Hex[], receipts: readonly Hex[], index: number) =>
     assert.throws(() => buildTransactionAndReceiptProofs(transactions, receipts, index), MptProofInputError);
