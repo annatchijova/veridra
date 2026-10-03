@@ -92,3 +92,55 @@ test("raw block decoding locates the transaction and checks both header roots", 
     /receipt root differs from raw block header/,
   );
 });
+
+test("builds the small target proof when an unrelated transaction value exceeds 8 KiB", () => {
+  const transactionRoot = hexToBytes("0x8b07b4dbc8c6f929c72b1ecf67b6c4f1ead8d82eedf74c4a10b8448ee3ffc446");
+  const receiptRoot = hexToBytes("0xae833f5f13bb80272f61f8d5ecaef29eb2077476f81cac03a365ebfce99c1d25");
+  const header = [
+    hexToBytes(`0x${"11".repeat(32)}`),
+    hexToBytes(`0x${"22".repeat(32)}`),
+    hexToBytes(`0x${"33".repeat(20)}`),
+    hexToBytes(`0x${"44".repeat(32)}`),
+    transactionRoot,
+    receiptRoot,
+    hexToBytes(`0x${"55".repeat(256)}`),
+    hexToBytes("0x"),
+    hexToBytes("0x01"),
+    hexToBytes("0x5208"),
+    hexToBytes("0x01"),
+    hexToBytes("0x01"),
+    hexToBytes("0x"),
+    hexToBytes(`0x${"66".repeat(32)}`),
+    hexToBytes(`0x${"00".repeat(8)}`),
+  ];
+  const largeUnrelatedTransaction = hexToBytes(`0x${"ab".repeat(8_193)}`);
+  const rawBlock = toRlp([header, [hexToBytes("0x03"), largeUnrelatedTransaction], []], "hex");
+
+  const proof = buildInclusionProofFromRawBlock(rawBlock, ["0x02", "0x04"], keccak256("0x03"));
+
+  assert.equal(proof.transactionIndex, 0);
+  assert.equal(proof.proofs.transaction.value, "0x03");
+  assert.equal(proof.proofs.transactionRoot, "0x8b07b4dbc8c6f929c72b1ecf67b6c4f1ead8d82eedf74c4a10b8448ee3ffc446");
+  assert.equal(proof.proofs.receiptRoot, "0xae833f5f13bb80272f61f8d5ecaef29eb2077476f81cac03a365ebfce99c1d25");
+  assert.throws(
+    () => buildTransactionAndReceiptProofs([`0x${"ab".repeat(8_193)}` as Hex], ["0x02"], 0),
+    /Entry 0 exceeds 8192 bytes/,
+  );
+  assert.throws(
+    () => buildTransactionAndReceiptProofs(["0x01"], [`0x${"ab".repeat(8_193)}` as Hex], 0),
+    /Entry 0 exceeds 8192 bytes/,
+  );
+});
+
+test("keeps the combined two-megabyte bound across transaction and receipt trie values", () => {
+  const largeUnrelatedValue = `0x${"ab".repeat(1_000_000)}` as Hex;
+
+  assert.throws(
+    () => buildTransactionAndReceiptProofs(
+      ["0x03", largeUnrelatedValue],
+      ["0x02", largeUnrelatedValue],
+      0,
+    ),
+    /Combined transaction and receipt data exceeds 2 MB/,
+  );
+});

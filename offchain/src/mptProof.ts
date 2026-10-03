@@ -1,7 +1,7 @@
 import { bytesToHex, fromRlp, hexToBytes, keccak256, toRlp, type Hex } from "viem";
 
 const MAX_ENTRIES = 4_096;
-const MAX_VALUE_BYTES = 8_192;
+const MAX_TARGET_VALUE_BYTES = 8_192;
 const MAX_TOTAL_VALUE_BYTES = 2_000_000;
 const MAX_RAW_BLOCK_BYTES = 2_000_000;
 const MAX_HEADER_BYTES = 4_096;
@@ -181,16 +181,18 @@ export function buildTransactionAndReceiptProofs(
   }
 
   let totalBytes = 0;
-  const parseValues = (values: readonly Hex[]): Uint8Array[] => values.map((value, entryIndex) => {
+  const parseValues = (values: readonly Hex[], targetIndex: number): Uint8Array[] => values.map((value, entryIndex) => {
     if (typeof value !== "string" || !/^0x(?:[0-9a-fA-F]{2})+$/.test(value)) fail(`Entry ${entryIndex} must be non-empty even-length hex`);
     const bytes = hexToBytes(value);
-    if (bytes.length > MAX_VALUE_BYTES) fail(`Entry ${entryIndex} exceeds ${MAX_VALUE_BYTES} bytes`);
+    if (entryIndex === targetIndex && bytes.length > MAX_TARGET_VALUE_BYTES) {
+      fail(`Entry ${entryIndex} exceeds ${MAX_TARGET_VALUE_BYTES} bytes`);
+    }
     totalBytes += bytes.length;
     if (totalBytes > MAX_TOTAL_VALUE_BYTES) fail("Combined transaction and receipt data exceeds 2 MB");
     return bytes;
   });
-  const txValues = parseValues(transactions);
-  const receiptValues = parseValues(receipts);
+  const txValues = parseValues(transactions, index);
+  const receiptValues = parseValues(receipts, index);
   const entriesFor = (values: Uint8Array[]): TrieEntry[] => values.map((value, entryIndex) => ({
     key: indexKey(entryIndex), value,
   }));
