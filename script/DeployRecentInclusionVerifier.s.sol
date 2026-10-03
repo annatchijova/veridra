@@ -17,11 +17,15 @@ contract DeployRecentInclusionVerifier is Script {
             revert WrongDeploymentChain(MONAD_TESTNET_CHAIN_ID, actualChainId);
         }
 
-        vm.startBroadcast();
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address deployer = vm.addr(deployerPrivateKey);
+
+        vm.startBroadcast(deployerPrivateKey);
         verifier = new RecentInclusionVerifier();
         vm.stopBroadcast();
 
         console.log("RecentInclusionVerifier deployed at:", address(verifier));
+        console.log("Deployer:", deployer);
         console.log("Runtime code hash:");
         console.logBytes32(address(verifier).codehash);
     }
