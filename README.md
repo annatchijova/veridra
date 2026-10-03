@@ -22,7 +22,7 @@ If the transfer went to a different address, the result should be `NOT_VERIFIED`
 
 Veridra is scoped to facts that can be tied to the selected chain evidence. A ledger result does not by itself establish who controlled a wallet, whether an invoice was legally satisfied, or whether goods or services were delivered. A claim can only be checked to the extent that the transaction data and the chosen evidence source support it.
 
-The Level 1 Solidity contract core and TypeScript RPC acquisition/publication library are implemented. The contracts compile with Solidity 0.8.24 using the repository's `via_ir` setting. 40 Foundry tests (`forge test`) exercise the adjudicator, registry, and recent-inclusion verifier; 51 Node.js tests (`npm test` in `offchain/`) exercise claim parsing, RPC evidence acquisition, proof construction, raw payment-fact extraction, portable receipt export/reverification, inclusion-client boundaries, and independent receipt verification. A minimal CLI (`node dist/cli.js verify <receiptId> ...` / `publish ...`) wraps the acquisition, publication, and independent-verification library, and has been run live against Monad testnet — see "Live on Monad testnet" below. See the [technical design and open decisions](TECHNICAL_README.md).
+The Level 1 Solidity contract core and TypeScript RPC acquisition/publication library are implemented. The contracts compile with Solidity 0.8.24 using the repository's `via_ir` setting. 41 Foundry tests (`forge test`) exercise the adjudicator, registry, and recent-inclusion verifier; 51 Node.js tests (`npm test` in `offchain/`) exercise claim parsing, RPC evidence acquisition, proof construction, raw payment-fact extraction, portable receipt export/reverification, inclusion-client boundaries, and independent receipt verification. A minimal CLI (`node dist/cli.js verify <receiptId> ...` / `publish ...`) wraps the acquisition, publication, and independent-verification library, and has been run live against Monad testnet — see "Live on Monad testnet" below. See the [technical design and open decisions](TECHNICAL_README.md).
 
 The first evidence path is deliberately scoped: Level 1 uses RPC-acquired evidence with explicit source attribution. Its receipt does not claim trustlessness. Later levels strengthen how the same evidence is authenticated, without changing what a payment claim means. The [architecture decision record](docs/ARCHITECTURE_FRACTURE.md) explains the progression and its limits.
 
@@ -82,6 +82,19 @@ forge script script/Deploy.s.sol \
   --verify --verifier sourcify --verifier-url https://sourcify-api-monad.blockvision.org/
 ```
 
+The Level 2 inclusion verifier is a separate, read-only deployment. Its script
+refuses to broadcast unless the connected chain ID is Monad testnet (`10143`):
+
+```bash
+forge script script/DeployRecentInclusionVerifier.s.sol \
+  --rpc-url monad_testnet \
+  --broadcast \
+  --verify --verifier sourcify --verifier-url https://sourcify-api-monad.blockvision.org/
+```
+
+Record the emitted address and runtime code hash as the caller-maintained
+`VerifierDeploymentPin`; neither is authenticated by the script's output alone.
+
 Needs a Monad testnet account funded with MON from [faucet.monad.xyz](https://faucet.monad.xyz). `.env` is gitignored; never commit it.
 
 ## Live on Monad testnet
@@ -102,7 +115,7 @@ Both receipts were independently re-checked with `node dist/cli.js verify <recei
 
 ## Current evidence
 
-The product direction adapts PROOF's useful semantics—explicit claims, `PASS` / `FAIL` / `ABSTAIN`, and distinct overall verdicts—to EVM transaction evidence. Veridra is a new Solidity and TypeScript implementation, not a source-code port. Solidity compilation, TypeScript type checking, 40 Foundry tests, and 51 Node.js tests have been run and pass. The full Level 1 pipeline — RPC evidence acquisition, onchain publication, and independent verification — has also been run live against a real Monad testnet transaction and the deployed registry above, on both the `VERIFIED` and `NOT_VERIFIED` paths. Level 2 remains incomplete: bounded raw proof acquisition, payment-fact extraction, recent inclusion verification against `BLOCKHASH`, caller-configured verifier runtime-code pinning, and versioned portable receipt export/reverification are implemented and locally tested. A live Monad Level 2 check remains outstanding. The code pin and source IDs are caller-maintained labels; they do not authenticate the RPC supplying bytecode, proof data, or `eth_call` results. Levels 3–7 (persistent-root history, prior payment expectations, merchant integration, additional transaction shapes, and the optional private receipt) remain unbuilt.
+The product direction adapts PROOF's useful semantics—explicit claims, `PASS` / `FAIL` / `ABSTAIN`, and distinct overall verdicts—to EVM transaction evidence. Veridra is a new Solidity and TypeScript implementation, not a source-code port. Solidity compilation, TypeScript type checking, 41 Foundry tests, and 51 Node.js tests have been run and pass. The full Level 1 pipeline — RPC evidence acquisition, onchain publication, and independent verification — has also been run live against a real Monad testnet transaction and the deployed registry above, on both the `VERIFIED` and `NOT_VERIFIED` paths. Level 2 remains incomplete: bounded raw proof acquisition, payment-fact extraction, recent inclusion verification against `BLOCKHASH`, caller-configured verifier runtime-code pinning, and versioned portable receipt export/reverification are implemented and locally tested. A live Monad Level 2 check remains outstanding. The code pin and source IDs are caller-maintained labels; they do not authenticate the RPC supplying bytecode, proof data, or `eth_call` results. Levels 3–7 (persistent-root history, prior payment expectations, merchant integration, additional transaction shapes, and the optional private receipt) remain unbuilt.
 
 For architecture, threat boundaries, design choices, and falsifiers, see the **[Technical README](TECHNICAL_README.md)**.
 
