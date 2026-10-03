@@ -73,7 +73,8 @@ function snapshotProofNodes(value: unknown, label: string): Hex[] {
   return snapshot;
 }
 
-function snapshotProof(source: AcquiredRecentInclusionProof): AcquiredRecentInclusionProof {
+/** Validate and copy the bounded proof so later async work cannot observe caller mutation. */
+export function snapshotRecentInclusionProof(source: AcquiredRecentInclusionProof): AcquiredRecentInclusionProof {
   requireCondition(source !== null && typeof source === "object", "Inclusion proof must be an object");
   requireCondition(source.proofs !== null && typeof source.proofs === "object", "Inclusion proof paths are missing");
   const transaction = source.proofs.transaction;
@@ -116,7 +117,7 @@ export async function verifyRecentInclusionOnchain(
   input: VerifyRecentInclusionInput,
 ): Promise<OnchainRecentInclusionResult> {
   const expectedChainId = input.expectedChainId;
-  const proof = snapshotProof(input.proof);
+  const proof = snapshotRecentInclusionProof(input.proof);
   const tokenAddressInput = input.supportedTokenAddresses;
   requireCondition(Array.isArray(tokenAddressInput), "Token allowlist must be an array");
   const tokenCount = tokenAddressInput.length;

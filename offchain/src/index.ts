@@ -17,6 +17,18 @@ export type { RawPaymentFact } from "./paymentFacts.js";
 export { verifyRecentInclusionOnchain, RecentInclusionVerificationError } from "./verifyInclusion.js";
 export type { OnchainRecentInclusionResult, VerifyRecentInclusionInput } from "./verifyInclusion.js";
 export {
+  createPortableInclusionReceipt,
+  parsePortableInclusionReceipt,
+  PortableReceiptError,
+  verifyPortableInclusionReceipt,
+} from "./portableReceipt.js";
+export type {
+  CreatePortableInclusionReceiptInput,
+  PortableReceiptVerification,
+  VerifierDeploymentPin,
+  VerifyPortableInclusionReceiptInput,
+} from "./portableReceipt.js";
+export {
   ReceiptIntegrityError,
   ReceiptNotFoundError,
   UnsupportedReceiptVariantError,

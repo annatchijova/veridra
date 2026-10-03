@@ -40,9 +40,14 @@ contract RecentInclusionVerifier is RecentBlockhashAnchor {
         if (actualBlockHash != expectedBlockHash) {
             revert HeaderHashMismatch(expectedBlockHash, actualBlockHash);
         }
-
+        // Parse first so the header-size bound is enforced before hashing calldata.
         (uint64 headerNumber, bytes32 transactionsRoot, bytes32 receiptsRoot) =
             MerklePatriciaProof.headerRoots(rawHeader);
+
+        bytes32 actualHeaderHash = keccak256(rawHeader);
+        if (actualHeaderHash != actualBlockHash) {
+            revert HeaderHashMismatch(actualBlockHash, actualHeaderHash);
+        }
         if (headerNumber != blockNumber) revert HeaderNumberMismatch(blockNumber, headerNumber);
 
         bytes32 actualTransactionHash = keccak256(rawTransaction);

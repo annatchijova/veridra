@@ -144,6 +144,35 @@ contract RecentInclusionVerifierTest is Test {
         );
     }
 
+    function test_rejectsProofHeaderThatDiffersFromTheAnchoredBlockHash() public {
+        (
+            bytes memory rawTransaction,
+            bytes memory rawReceipt,
+            bytes32 transactionsRoot,
+            bytes32 receiptsRoot,
+            bytes[] memory transactionProof,
+            bytes[] memory receiptProof
+        ) = _hashedBranchVector();
+        bytes memory anchoredHeader = _header(TX_ROOT, RECEIPT_ROOT, 1);
+        bytes32 canonicalBlockHash = keccak256(anchoredHeader);
+        bytes memory suppliedHeader = _header(transactionsRoot, receiptsRoot, 1);
+        assertTrue(keccak256(suppliedHeader) != canonicalBlockHash);
+        _anchor(1, canonicalBlockHash);
+
+        vm.expectPartialRevert(RecentInclusionVerifier.HeaderHashMismatch.selector);
+        verifier.verifyRecentInclusion(
+            1,
+            canonicalBlockHash,
+            suppliedHeader,
+            1,
+            keccak256(rawTransaction),
+            rawTransaction,
+            transactionProof,
+            rawReceipt,
+            receiptProof
+        );
+    }
+
     function test_rejectsHeaderNumberDifferentFromAnchoredBlock() public {
         bytes memory rawHeader = _header(TX_ROOT, RECEIPT_ROOT, 2);
         bytes32 blockHash = keccak256(rawHeader);
