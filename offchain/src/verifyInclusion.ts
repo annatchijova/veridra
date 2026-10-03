@@ -1,4 +1,4 @@
-import { getAddress, type Address, type Hex, type PublicClient } from "viem";
+import { getAddress, keccak256, type Address, type Hex, type PublicClient } from "viem";
 import { recentInclusionVerifierAbi } from "./abi/recentInclusionVerifierAbi.js";
 import { derivePaymentFactFromRawValues, type RawPaymentFact } from "./paymentFacts.js";
 import type { AcquiredRecentInclusionProof } from "./proofRpc.js";
@@ -11,10 +11,16 @@ const MAX_PROOF_BYTES = 40_000;
 const MAX_VALUE_BYTES = 8_192;
 const MAX_HEADER_BYTES = 4_096;
 const MAX_TOKEN_ALLOWLIST = 64;
+const MAX_VERIFIER_BYTECODE_BYTES = 65_536;
 
 export type VerifyRecentInclusionInput = {
   publicClient: PublicClient;
-  verifierAddress: Address;
+  /** Caller-maintained trust pin; this library does not choose the trusted deployment. */
+  verifierDeployment: {
+    chainId: bigint;
+    address: Address;
+    runtimeCodeHash: Hex;
+  };
   expectedChainId: bigint;
   proof: AcquiredRecentInclusionProof;
   /** Explicit token policy used to rederive facts from the submitted trie values. */
@@ -120,10 +126,18 @@ export async function verifyRecentInclusionOnchain(
     supportedTokenAddresses.push(tokenAddressInput[index]!);
   }
   const publicClient = input.publicClient;
-  const verifierAddress = getAddress(input.verifierAddress);
+  const deployment = input.verifierDeployment;
+  requireCondition(deployment !== null && typeof deployment === "object", "Verifier deployment pin is required");
+  const verifierAddress = getAddress(deployment.address);
+  const expectedRuntimeCodeHash = deployment.runtimeCodeHash;
   requireCondition(
     expectedChainId > 0n && expectedChainId <= MAX_SAFE_CHAIN_ID,
     "Expected chain ID must be a positive safely representable integer",
+  );
+  requireCondition(deployment.chainId === expectedChainId, "Pinned verifier deployment is for a different chain");
+  requireCondition(
+    typeof expectedRuntimeCodeHash === "string" && /^0x[0-9a-fA-F]{64}$/.test(expectedRuntimeCodeHash),
+    "Pinned verifier runtime code hash must be bytes32",
   );
   requireCondition(proof.chainId === expectedChainId, "Proof was acquired from a different configured chain");
   requireCondition(proof.blockNumber >= 0n && proof.blockNumber <= MAX_UINT64, "Proof block number is outside uint64");
@@ -170,6 +184,26 @@ export async function verifyRecentInclusionOnchain(
   const clientChainId = await publicClient.getChainId();
   requireCondition(Number.isSafeInteger(clientChainId), "Public client returned an unsafe chain ID");
   requireCondition(BigInt(clientChainId) === expectedChainId, "Public client is connected to a different chain");
+
+  let verifierBytecode: Hex | undefined;
+  try {
+    verifierBytecode = await publicClient.getBytecode({ address: verifierAddress });
+  } catch {
+    throw new RecentInclusionVerificationError("Could not read the pinned verifier deployment bytecode");
+  }
+  requireCondition(
+    typeof verifierBytecode === "string"
+      && /^0x(?:[0-9a-fA-F]{2})+$/.test(verifierBytecode),
+    "Pinned verifier deployment has no runtime bytecode",
+  );
+  requireCondition(
+    (verifierBytecode.length - 2) / 2 <= MAX_VERIFIER_BYTECODE_BYTES,
+    "Pinned verifier runtime bytecode exceeds its configured byte bound",
+  );
+  requireCondition(
+    keccak256(verifierBytecode).toLowerCase() === expectedRuntimeCodeHash.toLowerCase(),
+    "Verifier runtime code hash does not match the deployment pin",
+  );
 
   const verified = await publicClient.readContract({
     address: verifierAddress,

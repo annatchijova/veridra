@@ -9,7 +9,14 @@ import { RecentInclusionVerificationError, verifyRecentInclusionOnchain } from "
 const VERIFIER = `0x${"11".repeat(20)}` as Address;
 const BLOCK_HASH = `0x${"33".repeat(32)}` as Hex;
 const ROOT = `0x${"44".repeat(32)}` as Hex;
+const VERIFIER_CODE = "0x60006000" as Hex;
+const VERIFIER_CODE_HASH = keccak256(VERIFIER_CODE);
 const CHAIN_ID = 10143n;
+const VERIFIER_DEPLOYMENT = {
+  chainId: CHAIN_ID,
+  address: VERIFIER,
+  runtimeCodeHash: VERIFIER_CODE_HASH,
+};
 const ACCOUNT = privateKeyToAccount("0x0000000000000000000000000000000000000000000000000000000000000001");
 const RECIPIENT = "0x6666666666666666666666666666666666666666" as Address;
 
@@ -57,6 +64,7 @@ test("reports only RPC-attributed inclusion acceptance after a true verifier cal
   let called = false;
   const publicClient = {
     getChainId: async () => 10143,
+    getBytecode: async () => VERIFIER_CODE,
     readContract: async (request: { functionName: string; args: readonly unknown[] }) => {
       called = true;
       assert.equal(request.functionName, "verifyRecentInclusion");
@@ -69,7 +77,7 @@ test("reports only RPC-attributed inclusion acceptance after a true verifier cal
 
   const result = await verifyRecentInclusionOnchain({
     publicClient,
-    verifierAddress: VERIFIER,
+    verifierDeployment: VERIFIER_DEPLOYMENT,
     expectedChainId: CHAIN_ID,
     proof: await acquiredProof(),
     supportedTokenAddresses: [],
@@ -94,12 +102,65 @@ test("does not call the verifier when the connected chain differs", async () => 
   await assert.rejects(
     verifyRecentInclusionOnchain({
       publicClient,
-      verifierAddress: VERIFIER,
+      verifierDeployment: VERIFIER_DEPLOYMENT,
       expectedChainId: CHAIN_ID,
       proof: await acquiredProof(),
       supportedTokenAddresses: [],
     }),
     RecentInclusionVerificationError,
+  );
+  assert.equal(called, false);
+});
+
+test("rejects a verifier deployment whose runtime code hash is not pinned", async () => {
+  let called = false;
+  const publicClient = {
+    getChainId: async () => Number(CHAIN_ID),
+    getBytecode: async () => "0x6001",
+    readContract: async () => {
+      called = true;
+      return true;
+    },
+  } as unknown as PublicClient;
+
+  const input = {
+    publicClient,
+    verifierDeployment: VERIFIER_DEPLOYMENT,
+    expectedChainId: CHAIN_ID,
+    proof: await acquiredProof(),
+    supportedTokenAddresses: [],
+  } as Parameters<typeof verifyRecentInclusionOnchain>[0];
+
+  await assert.rejects(
+    verifyRecentInclusionOnchain(input),
+    (error: unknown) => error instanceof RecentInclusionVerificationError
+      && /runtime code hash/.test(error.message),
+  );
+  assert.equal(called, false);
+});
+
+test("bounds untrusted verifier bytecode before hashing or making the inclusion call", async () => {
+  let called = false;
+  const oversizedBytecode = `0x${"00".repeat(65_537)}` as Hex;
+  const publicClient = {
+    getChainId: async () => Number(CHAIN_ID),
+    getBytecode: async () => oversizedBytecode,
+    readContract: async () => {
+      called = true;
+      return true;
+    },
+  } as unknown as PublicClient;
+
+  await assert.rejects(
+    verifyRecentInclusionOnchain({
+      publicClient,
+      verifierDeployment: VERIFIER_DEPLOYMENT,
+      expectedChainId: CHAIN_ID,
+      proof: await acquiredProof(),
+      supportedTokenAddresses: [],
+    }),
+    (error: unknown) => error instanceof RecentInclusionVerificationError
+      && /bytecode exceeds its configured byte bound/.test(error.message),
   );
   assert.equal(called, false);
 });
@@ -119,7 +180,7 @@ test("rejects a forged attached payment fact before calling the verifier", async
   await assert.rejects(
     verifyRecentInclusionOnchain({
       publicClient,
-      verifierAddress: VERIFIER,
+      verifierDeployment: VERIFIER_DEPLOYMENT,
       expectedChainId: CHAIN_ID,
       proof,
       supportedTokenAddresses: [],
@@ -143,6 +204,7 @@ test("uses a snapshot when the caller mutates the proof during the chain check",
       proof.proofs.transaction.value = "0x03";
       return Number(CHAIN_ID);
     },
+    getBytecode: async () => VERIFIER_CODE,
     readContract: async (request: { args: readonly unknown[] }) => {
       sentHash = request.args[4] as Hex;
       sentTransaction = request.args[5] as Hex;
@@ -152,7 +214,7 @@ test("uses a snapshot when the caller mutates the proof during the chain check",
 
   const result = await verifyRecentInclusionOnchain({
     publicClient,
-    verifierAddress: VERIFIER,
+    verifierDeployment: VERIFIER_DEPLOYMENT,
     expectedChainId: CHAIN_ID,
     proof,
     supportedTokenAddresses: [],
