@@ -91,17 +91,22 @@ con runtime code hash `0xa4d1836d69eedbf3f90b5ef986e583b35153487d9cf06983fd90a86
 El despliegue tuvo éxito en el bloque `67709091` y usó 3.634.723 gas
 (`0,374376469003634723 MON` pagados).
 
-El 2026-10-02, una prueba en vivo aceptó el recorrido de prueba y recibo portable
-para una transferencia nativa de 1 wei en el bloque `67710927`
-([transacción](https://testnet.monadexplorer.com/tx/0xd03d2e30b55b398ee8d3c3de803ff832b31571658a425f63942f103e57c52936)).
-La adquisición, la verificación del producer y la reverificación del consumer
-usaron el mismo RPC público. Esto demuestra un recorrido end-to-end, no un
-proveedor independiente ni una respuesta RPC autenticada; el Nivel 2 sigue
-incompleto.
+Las pruebas en vivo de inclusión y recibo portable incluyen una transferencia
+nativa de 1 wei en el bloque `67710927` (2026-10-02) y otra EIP-1559 de 10 wei
+en el bloque `67849839` (2026-10-03)
+([segunda transacción](https://testnet.monadexplorer.com/tx/0x22b9176c5bc9bbbe2909163275788db04ab5b9fd87492a793a134c8eeb280753)).
+Sobre la segunda prueba, afirmar el monto correcto dio `VERIFIED`; afirmar
+deliberadamente 11 wei dio `NOT_VERIFIED` con solo `amount` en fallo, mientras
+ambos recibos portables pasaron el verificador de inclusión desplegado. Una
+autotransferencia EIP-1559 separada de 1 wei también pasó de punta a punta. La
+adquisición y las verificaciones del consumer usaron el mismo RPC público, por
+lo que estas ejecuciones no demuestran comportamiento con proveedores
+independientes ni respuestas RPC autenticadas. El comportamiento en vivo de
+ERC-20 sigue sin probarse y el Nivel 2 todavía no está completo.
 
 ## Estado actual
 
-La dirección de producto adapta semánticas útiles de PROOF —afirmaciones explícitas, `PASS` / `FAIL` / `ABSTAIN` y veredictos generales distintos— a evidencia de transacciones EVM. Veridra se implementa en Solidity y TypeScript; no es un port del código fuente. Se ejecutaron y pasaron la compilación Solidity, el chequeo de tipos TypeScript, 41 tests de Foundry y 51 tests de Node.js. El pipeline completo del Nivel 1 —adquisición de evidencia RPC, publicación onchain y verificación independiente— también corrió en vivo contra una transacción real de Monad testnet y el registry desplegado arriba, tanto en el camino `VERIFIED` como en el `NOT_VERIFIED`. El Nivel 2 tiene una prueba end-to-end en vivo: se adquirió una transferencia nativa, se generó un recibo portable y el verificador desplegado la aceptó. Producer y consumer usaron el mismo RPC público; esto confirma solo ese recorrido, no autentica al proveedor. El Nivel 2 sigue incompleto a la espera de una cobertura en vivo más amplia. El pin y los IDs de fuente son etiquetas declaradas por callers: no autentican el RPC que entrega el bytecode, las pruebas o el resultado de `eth_call`. Los niveles 3–7 (historial de raíces persistentes, expectativas de pago previas, integración con un comercio, formas de transacción adicionales y recibo privado opcional) todavía no están construidos.
+La dirección de producto adapta semánticas útiles de PROOF —afirmaciones explícitas, `PASS` / `FAIL` / `ABSTAIN` y veredictos generales distintos— a evidencia de transacciones EVM. Veridra se implementa en Solidity y TypeScript; no es un port del código fuente. Se ejecutaron y pasaron la compilación Solidity, el chequeo de tipos TypeScript, 41 tests de Foundry y 51 tests de Node.js. El pipeline completo del Nivel 1 —adquisición de evidencia RPC, publicación onchain y verificación independiente— también corrió en vivo contra una transacción real de Monad testnet y el registry desplegado arriba, tanto en el camino `VERIFIED` como en el `NOT_VERIFIED`. El Nivel 2 ya tiene varias pruebas en vivo de transferencias nativas, incluida una EIP-1559 y una pareja de afirmaciones de monto correcto/incorrecto sobre la misma prueba. Todas usaron el mismo RPC público; no autentican al proveedor de forma independiente. El comportamiento ERC-20 en vivo y con un segundo proveedor sigue sin probarse, así que el Nivel 2 continúa incompleto. El pin y los IDs de fuente son etiquetas declaradas por callers: no autentican el RPC que entrega el bytecode, las pruebas o el resultado de `eth_call`. Los niveles 3–7 (historial de raíces persistentes, expectativas de pago previas, integración con un comercio, formas de transacción adicionales y recibo privado opcional) todavía no están construidos.
 
 Para la arquitectura, los límites de confianza, las decisiones y las formas de refutar el diseño, consulta el **[Technical README](TECHNICAL_README.md)**.
 

@@ -119,16 +119,21 @@ with runtime code hash `0xa4d1836d69eedbf3f90b5ef986e583b35153487d9cf06983fd90a8
 Its deployment transaction succeeded at block `67709091` and used 3,634,723 gas
 (`0.374376469003634723 MON` paid).
 
-On 2026-10-02, a live proof/portable-receipt round trip accepted a direct native
-transfer of 1 wei at block `67710927`
-([transaction](https://testnet.monadexplorer.com/tx/0xd03d2e30b55b398ee8d3c3de803ff832b31571658a425f63942f103e57c52936)).
-Acquisition, producer verification, and consumer reverification used the same
-public RPC. This demonstrates one end-to-end path, not an independent provider
-or authenticated RPC response; Level 2 remains incomplete.
+Live proof/portable-receipt round trips include a 1-wei direct native transfer
+at block `67710927` on 2026-10-02 and an EIP-1559 10-wei transfer at block
+`67849839` on 2026-10-03
+([second transaction](https://testnet.monadexplorer.com/tx/0x22b9176c5bc9bbbe2909163275788db04ab5b9fd87492a793a134c8eeb280753)).
+On the second proof, the correct amount produced `VERIFIED`; deliberately
+asserting 11 wei produced `NOT_VERIFIED` with only `amount` failing, while both
+portable receipts passed the deployed inclusion verifier. A separate 1-wei
+EIP-1559 self-transfer also passed end-to-end. Acquisition and consumer checks
+used the same public RPC, so these runs do not establish independent-provider
+behavior or authenticated RPC responses. ERC-20 live behavior remains
+untested; Level 2 is not yet complete.
 
 ## Current evidence
 
-The product direction adapts PROOF's useful semantics—explicit claims, `PASS` / `FAIL` / `ABSTAIN`, and distinct overall verdicts—to EVM transaction evidence. Veridra is a new Solidity and TypeScript implementation, not a source-code port. Solidity compilation, TypeScript type checking, 41 Foundry tests, and 51 Node.js tests have been run and pass. The full Level 1 pipeline — RPC evidence acquisition, onchain publication, and independent verification — has also been run live against a real Monad testnet transaction and the deployed registry above, on both the `VERIFIED` and `NOT_VERIFIED` paths. Level 2 has one live end-to-end test: a direct native transfer was acquired, turned into a portable receipt, and accepted by the deployed verifier. Producer and consumer used the same public RPC, so this confirms only that path; it does not independently authenticate the provider. Level 2 remains incomplete pending broader live coverage. The code pin and source IDs are caller-maintained labels; they do not authenticate the RPC supplying bytecode, proof data, or `eth_call` results. Levels 3–7 (persistent-root history, prior payment expectations, merchant integration, additional transaction shapes, and the optional private receipt) remain unbuilt.
+The product direction adapts PROOF's useful semantics—explicit claims, `PASS` / `FAIL` / `ABSTAIN`, and distinct overall verdicts—to EVM transaction evidence. Veridra is a new Solidity and TypeScript implementation, not a source-code port. Solidity compilation, TypeScript type checking, 41 Foundry tests, and 51 Node.js tests have been run and pass. The full Level 1 pipeline — RPC evidence acquisition, onchain publication, and independent verification — has also been run live against a real Monad testnet transaction and the deployed registry above, on both the `VERIFIED` and `NOT_VERIFIED` paths. Level 2 now has multiple live native-transfer round trips, including EIP-1559, and a paired correct/incorrect amount claim over one proof. All used the same public RPC; this does not independently authenticate the provider. Live ERC-20 and second-provider behavior remain untested, so Level 2 is incomplete. The code pin and source IDs are caller-maintained labels; they do not authenticate the RPC supplying bytecode, proof data, or `eth_call` results. Levels 3–7 (persistent-root history, prior payment expectations, merchant integration, additional transaction shapes, and the optional private receipt) remain unbuilt.
 
 For architecture, threat boundaries, design choices, and falsifiers, see the **[Technical README](TECHNICAL_README.md)**.
 
