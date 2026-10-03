@@ -37,6 +37,9 @@ RPC failures, inconsistent data, unsupported transaction shapes, and ambiguous t
 ```sh
 npm run build
 node dist/cli.js verify <receiptId> --registry <address> [--rpc-url <url>] [--chain-id <id>]
+node dist/cli.js publish <transactionHash> --registry <address> [--sender <addr>] [--recipient <addr>]
+  [--asset <addr>] [--amount <baseUnits>] [--rpc-url <url>] [--chain-id <id>]
+  [--required-confirmations <n>] [--supported-tokens <addr,addr,...>]
 ```
 
-`--rpc-url` defaults to `MONAD_TESTNET_RPC_URL` or, failing that, viem's bundled Monad Testnet default RPC. `--registry` can also be set via `VERIDRA_REGISTRY_ADDRESS`. The command prints the verified receipt as JSON, or a non-zero exit with the specific error (not found, unsupported variant, or an integrity mismatch). There is no `publish` subcommand yet — publishing needs a funded signer and is still exercised through `publishReceipt()` directly, not the CLI.
+`--rpc-url` defaults to `MONAD_TESTNET_RPC_URL` or, failing that, viem's bundled Monad Testnet default RPC. `--registry` can also be set via `VERIDRA_REGISTRY_ADDRESS`. `verify` prints the independently checked registry receipt as JSON, or exits non-zero on a missing receipt, unsupported variant, or integrity mismatch. `publish` acquires transaction evidence, adjudicates the supplied assertions, and submits through the registry. It reads `PRIVATE_KEY` only from the environment (never a CLI flag); the signer must be funded for gas and authorized as the registry publisher. The CLI does not print the key. `--asset`, `--amount`, and the supported-token allowlist use the package's direct-transfer semantics; amounts are integer base units, not display decimals. These commands implement the Level 1 RPC-attested path; recent inclusion-proof acquisition and portable receipts are library APIs, not CLI subcommands.
