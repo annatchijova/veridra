@@ -200,3 +200,144 @@ explicitly a stretch, not part of the core plan.
    convention.
 
 No open decisions remain blocking UI-Level 1 implementation.
+
+## Frontend-skills review (2026-10-07)
+
+Ran the plan above through `frontend-accessibility-by-construction`,
+`resilient-ui-states`, `non-overwhelming-ux`, `frontend-component-boundaries`,
+`frontend-performance-budgets`, and `frontend-testing-strategy` before
+writing any code. Findings below are concrete acceptance checks and module
+shape, not new open decisions — nothing here changes the confirmed scope,
+persona, stack, or design language above.
+
+### Accessibility
+
+- Every interactive element is a native one — `<button>` for Check / Export
+  / Reverify, `<input>` + a real associated `<label>` for every field (tx
+  hash, sender, recipient, asset, amount). Nothing in this plan needs a
+  custom ARIA widget (no dropdown, tabs, or modal), so the native-first rule
+  fully covers it — no ARIA authoring patterns to get wrong.
+- **Verdict and per-check state must never be color-only.** `VERIFIED` /
+  `NOT_VERIFIED` / `INSUFFICIENT_EVIDENCE` and each check's `PASS` / `FAIL`
+  / `ABSTAIN` render as text, color-coded in addition — not a colored dot
+  alone. This is also just more consistent with the forensic register
+  already confirmed: text reads as more sober than a status chip.
+- The results container is one `aria-live="polite"` region, so a
+  screen-reader user is told when a check's result lands without
+  re-wrapping already-static content in a live region "just in case"
+  (the anti-pattern the skill names directly) — this region only exists
+  because content genuinely changes after the Check action.
+- No modal exists anywhere in this plan, so no focus-trap/return-focus
+  concerns apply; the live-region announcement is the correct mechanism
+  here, not a focus steal.
+- Acceptance checks before shipping any palette: every verdict/check color
+  pairing meets 4.5:1 text contrast (WCAG 1.4.3); every button/badge meets
+  the ≥24×24px target-size floor (2.5.8).
+
+### Resilient states
+
+- **Each of the three evidence-tier cards is independently stateful** —
+  Level 1/2/3 each have their own loading → (success | empty | error)
+  lifecycle. A Level 3 RPC failure must never blank the Level 1 card that
+  already resolved (scoped failure, not a page-level error boundary) — this
+  is the direct frontend expression of this project's own
+  `honest-degradation` discipline (a partial result stays a partial result,
+  never collapsed into a page-wide failure).
+- **Three states previously collapsed into one informal "unavailable"
+  concept must render distinguishably:** `checking…` (loading) vs.
+  `unavailable — <plain reason>` (empty — e.g. "outside the 256-block
+  window" or "this block was never checkpointed", a designed absence, not a
+  failure) vs. `couldn't reach the network — try again` (error, a request
+  that actually failed). Collapsing "unavailable by design" into "error"
+  would misrepresent an honest architectural limitation as a bug.
+- Loading already has a bound for free: `offchain/src/proofRpc.ts`'s
+  existing `RPC_TIMEOUT_MILLISECONDS = 15_000` means no new infinite-spinner
+  risk — the UI only needs to render that specific failure as "the network
+  didn't respond in time," not a generic error string.
+- Tx-hash format validation fires on blur, not keystroke. An invalid submit
+  shows an inline error (`aria-invalid` + `aria-describedby`) and clears
+  nothing — every claim field the operator already filled in survives any
+  error, including a failed RPC call.
+
+### Cognitive load (the operator is mid-dispute, not browsing)
+
+- **Plain-language error translation is a required module, not a nice-to-
+  have.** Raw Solidity revert reasons (`BlockNotCheckpointed`,
+  `BlockOutsideWindow`, `HeaderHashMismatch`) and library exception classes
+  must never reach the operator verbatim — each known failure maps to one
+  plain sentence, ≤2 clauses, written for someone who has never read
+  Solidity. This is where `errorMessages.ts` (below) earns its place as its
+  own module rather than inline strings.
+- **Predictable layout:** all three tier-card slots render immediately (as
+  `checking…`) rather than popping in as each resolves — nothing on the
+  page reorders or reflows as results stream in across the three parallel
+  lookups.
+- **Progressive disclosure:** verdict + the seven-check breakdown is the
+  default view; raw proof bytes and header hex live behind a collapsed
+  "view raw evidence" disclosure. The operator needs the verdict in
+  seconds, not the RLP.
+- No countdown, no autosubmit, no modal stacking — already true by
+  construction given this plan has no timers and no modals; stated here as
+  a confirmed non-goal so a future addition doesn't casually introduce one.
+
+### Module boundaries (vanilla TS, no framework — extends "Technical architecture" above)
+
+One module per cohesive concern, matching MUSTER's `web/` precedent
+(`chain.ts`, `ui.ts`, one file per feature) rather than one-file-per-DOM-
+element fragmentation:
+
+- `chain.ts` — public client setup; the hardcoded `VerifierDeploymentPin`s
+  for both verifiers.
+- `claimForm.ts` — the input form: fields, blur-validation, and its own
+  inline-error state. Label + input + error stay fused (cohesive unit per
+  the skill — splitting them would just force this module to re-wire
+  `aria-describedby` across file boundaries for no benefit).
+- `verify.ts` — orchestrates the three parallel tier lookups through
+  `offchain/dist`; owns each tier's loading/empty/error/success state
+  locally, not lifted to a shared store (no second consumer exists yet to
+  justify lifting it).
+- `resultCard.ts` — renders one tier's result. Reused three times with
+  identical behavior — a real, current reuse case, not a speculative one.
+- `errorMessages.ts` — the plain-language translation layer named above.
+- `receiptExport.ts`, `reverify.ts` — Flow 2 and the export action.
+- `ui.ts`, `style.css` — shared render helpers, matching MUSTER's role split.
+
+### Performance
+
+This is low-traffic internal tooling used during a live dispute, not a
+high-traffic entry point — the skill's own stated exception applies:
+formal LCP/INP/CLS field-data budgeting is skipped by design, not by
+oversight. Several of the causal budgets are already satisfied for free by
+decisions made earlier in this plan: no framework runtime to hydrate, no
+images, a system monospace/sans stack (no custom webfont to swap or
+shift), no third-party scripts beyond `viem`. One real latency source is
+worth naming rather than discovering later: `debug_getRawBlock` /
+`debug_getRawReceipts` payload size scales with block size, so proof
+acquisition is plausibly the slowest step in a Check. It is already bounded
+by the existing 15s RPC timeout (see Resilient states above); its loading
+state should say "fetching block data," not a generic spinner, since the
+operator benefits from knowing which step is slow.
+
+### Testing
+
+The acquisition/verification/adjudication logic this UI calls is already
+covered by 67/67 tests in `offchain/`'s own suite — the UI layer's test
+responsibility is presentation only, not re-proving that logic:
+
+- **Static:** TypeScript strict mode, carried into `web/` from the
+  `offchain/` convention already in place.
+- **Integration (the main investment):** render `resultCard` with a mocked
+  tier result for each of loading/success/empty/error; render `claimForm`
+  and assert blur-validation, `aria-invalid` wiring, and that a failed
+  submit preserves entered values. Query by accessible role/label/text
+  (`getByRole`, `getByLabelText`) — never by CSS class or DOM structure, so
+  a visual refactor with identical behavior doesn't break the suite.
+  Mock the public client; no live network call inside a test.
+  One or two integration tests cover the real "paste hash → see result"
+  path end-to-end against that mock.
+- **No E2E.** This plan has no auth, no multi-page routing, and no payment
+  flow — the skill's own bar for E2E ("the integration between real systems
+  is itself the thing under test") isn't met. Manual live-testing against
+  the real chain, the same pattern `offchain/`'s own live-induction runs
+  already use, covers the one thing a mocked integration test can't: that
+  the real RPC actually behaves the way the mock assumes.
