@@ -59,6 +59,26 @@ function requireCondition(condition: boolean, message: string): asserts conditio
   if (!condition) throw new HistoricalInclusionVerificationError(message);
 }
 
+/**
+ * Read the checkpoint contract a deployed HistoricalInclusionVerifier is
+ * pinned to. This is informational, not an independent security check:
+ * Solidity embeds an `immutable address` directly into runtime bytecode, so
+ * the verifier's own runtime-code-hash pin already authenticates which
+ * checkpoint it trusts. Reading it back separately documents the trust
+ * chain explicitly for a receipt rather than leaving it implicit in bytecode.
+ */
+export async function readPinnedCheckpointAddress(
+  publicClient: PublicClient,
+  verifierAddress: Address,
+): Promise<Address> {
+  const checkpointAddress = await publicClient.readContract({
+    address: getAddress(verifierAddress),
+    abi: historicalInclusionVerifierAbi,
+    functionName: "checkpoint",
+  });
+  return getAddress(checkpointAddress);
+}
+
 function boundedHex(value: unknown, label: string, maximumBytes: number): Hex {
   requireCondition(
     typeof value === "string" && /^0x(?:[0-9a-fA-F]{2})+$/.test(value),

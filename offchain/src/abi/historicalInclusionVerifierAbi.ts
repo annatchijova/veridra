@@ -16,4 +16,11 @@ export const historicalInclusionVerifierAbi = [
     stateMutability: "view",
     type: "function",
   },
+  {
+    inputs: [],
+    name: "checkpoint",
+    outputs: [{ internalType: "contract HistoricalRootCheckpoint", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
 ] as const;
