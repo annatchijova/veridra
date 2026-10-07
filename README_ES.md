@@ -22,7 +22,7 @@ Si la transferencia fue a otra dirección, el resultado debería ser `NOT_VERIFI
 
 Veridra se limita a hechos que puedan vincularse con la evidencia de la cadena seleccionada. El resultado del ledger no establece por sí solo quién controlaba una wallet, si una factura quedó legalmente saldada ni si se entregaron bienes o servicios. Una afirmación solo puede verificarse hasta donde lo permitan los datos de la transacción y la fuente de evidencia elegida.
 
-El núcleo de contratos del Nivel 1 y la biblioteca TypeScript de adquisición y publicación RPC están implementados. Los contratos compilan con Solidity 0.8.24 usando la configuración `via_ir` del repositorio. 58 tests de Foundry (`forge test`) ejercitan el adjudicador, el registry, los verificadores de inclusión reciente e histórica, el checkpoint de roots y ambos scripts de despliegue protegidos; 53 tests de Node.js (`npm test` en `offchain/`) ejercitan parsing de afirmaciones, adquisición RPC, construcción de pruebas, extracción de hechos de pago, exportación/reverificación de recibos portátiles, límites del cliente de inclusión y verificación independiente. Un CLI mínimo (`node dist/cli.js verify <receiptId> ...` / `publish ...`) envuelve la biblioteca de adquisición, publicación y verificación independiente, y ya corrió en vivo contra Monad testnet — ver "En vivo en Monad testnet" más abajo. Consulta el [diseño técnico y las decisiones abiertas](TECHNICAL_README.md).
+El núcleo de contratos del Nivel 1 y la biblioteca TypeScript de adquisición y publicación RPC están implementados. Los contratos compilan con Solidity 0.8.24 usando la configuración `via_ir` del repositorio. 58 tests de Foundry (`forge test`) ejercitan el adjudicador, el registry, los verificadores de inclusión reciente e histórica, el checkpoint de roots y ambos scripts de despliegue protegidos; 59 tests de Node.js (`npm test` en `offchain/`) ejercitan parsing de afirmaciones, adquisición RPC, construcción de pruebas, extracción de hechos de pago, exportación/reverificación de recibos portátiles, límites del cliente de inclusión y verificación independiente. Un CLI mínimo (`node dist/cli.js verify <receiptId> ...` / `publish ...`) envuelve la biblioteca de adquisición, publicación y verificación independiente, y ya corrió en vivo contra Monad testnet — ver "En vivo en Monad testnet" más abajo. Consulta el [diseño técnico y las decisiones abiertas](TECHNICAL_README.md).
 
 El primer camino de evidencia tiene un alcance deliberado: el Nivel 1 usa evidencia obtenida por RPC y atribuye explícitamente su fuente. El recibo no afirma que sea trustless. Los niveles posteriores fortalecen la autenticación de esa misma evidencia sin cambiar el significado de una afirmación de pago. El [registro de decisiones arquitectónicas](docs/ARCHITECTURE_FRACTURE.md) explica la progresión y sus límites.
 
@@ -115,14 +115,28 @@ confirmó que coincide con la dirección del checkpoint. Ejercicio en vivo: se
 checkpointeó el bloque `69042193`
 ([`tx 0x392e74d98b4a68e398c602eeea5b9080ecf6ddc775b8b0a6a7a754ca26bae707`](https://testnet.monadexplorer.com/tx/0x392e74d98b4a68e398c602eeea5b9080ecf6ddc775b8b0a6a7a754ca26bae707)),
 y `checkpointedHash(69042193)` devolvió el mismo hash que emitió el evento de
-la transacción. Todavía no se corrió en vivo una prueba completa de inclusión
-histórica — eso necesita una prueba de header/MPT generada offchain para un
-bloque ya fuera de la ventana de `BLOCKHASH`, algo que no se ejercitó más allá
-de los vectores de test de Foundry.
+la transacción.
+
+Desde entonces se corrió en vivo, de punta a punta, una prueba completa de
+inclusión histórica. Una autotransferencia de 1 wei,
+[`0x0b343d385355dbc1d437c3a650e6a4ca59671e643a9e208c17903a2aa7e9b13a`](https://testnet.monadexplorer.com/tx/0x0b343d385355dbc1d437c3a650e6a4ca59671e643a9e208c17903a2aa7e9b13a)
+en el bloque `69047007`, se checkpointeó a las 3 confirmaciones, y después el
+flujo esperó hasta que el bloque tuviera 257 bloques de antigüedad — fuera de
+la ventana de 256 bloques de `BLOCKHASH`, confirmado consultando
+`cast block-number`. `acquireRecentInclusionProof` (la adquisición de la
+prueba no depende de la antigüedad) armó la prueba de header/MPT con
+`debug_getRawBlock`/`debug_getRawReceipts` en ese punto, y
+`verifyHistoricalInclusionOnchain` llamó al `HistoricalInclusionVerifier`
+desplegado, que devolvió `true` y la biblioteca reportó
+`RPC_REPORTED_HISTORICAL_INCLUSION_ACCEPTED` con el hecho de pago
+correctamente re-derivado (sender/recipient la dirección del deployer, monto
+1 wei). Este es exactamente el escenario que `RecentInclusionVerifier` no
+puede manejar — la prueba de la razón de ser del camino histórico, no solo
+de sus vectores de test de Foundry.
 
 ## Estado actual
 
-La dirección de producto adapta semánticas útiles de PROOF —afirmaciones explícitas, `PASS` / `FAIL` / `ABSTAIN` y veredictos generales distintos— a evidencia de transacciones EVM. Veridra se implementa en Solidity y TypeScript; no es un port del código fuente. Se ejecutaron y pasaron la compilación Solidity, el chequeo de tipos TypeScript, 58 tests de Foundry y 53 tests de Node.js. El pipeline completo del Nivel 1 —adquisición de evidencia RPC, publicación onchain y verificación independiente— también corrió en vivo contra una transacción real de Monad testnet y el registry desplegado arriba, tanto en el camino `VERIFIED` como en el `NOT_VERIFIED`. El Nivel 2 ya tiene varias pruebas en vivo de transferencias nativas, incluida una EIP-1559 y una pareja de afirmaciones de monto correcto/incorrecto sobre la misma prueba. Todas usaron el mismo RPC público; no autentican al proveedor de forma independiente. El comportamiento ERC-20 en vivo y con un segundo proveedor sigue sin probarse, así que el Nivel 2 continúa incompleto. El pin y los IDs de fuente son etiquetas declaradas por callers: no autentican el RPC que entrega el bytecode, las pruebas o el resultado de `eth_call`. Los niveles 3–7 (historial de raíces persistentes, expectativas de pago previas, integración con un comercio, formas de transacción adicionales y recibo privado opcional) todavía no están construidos.
+La dirección de producto adapta semánticas útiles de PROOF —afirmaciones explícitas, `PASS` / `FAIL` / `ABSTAIN` y veredictos generales distintos— a evidencia de transacciones EVM. Veridra se implementa en Solidity y TypeScript; no es un port del código fuente. Se ejecutaron y pasaron la compilación Solidity, el chequeo de tipos TypeScript, 58 tests de Foundry y 59 tests de Node.js. El pipeline completo del Nivel 1 —adquisición de evidencia RPC, publicación onchain y verificación independiente— también corrió en vivo contra una transacción real de Monad testnet y el registry desplegado arriba, tanto en el camino `VERIFIED` como en el `NOT_VERIFIED`. El Nivel 2 ya tiene varias pruebas en vivo de transferencias nativas, incluida una EIP-1559 y una pareja de afirmaciones de monto correcto/incorrecto sobre la misma prueba. Todas usaron el mismo RPC público; no autentican al proveedor de forma independiente. El comportamiento ERC-20 en vivo y con un segundo proveedor sigue sin probarse, así que el Nivel 2 continúa incompleto. El pin y los IDs de fuente son etiquetas declaradas por callers: no autentican el RPC que entrega el bytecode, las pruebas o el resultado de `eth_call`. Los niveles 3–7 (historial de raíces persistentes, expectativas de pago previas, integración con un comercio, formas de transacción adicionales y recibo privado opcional) todavía no están construidos.
 
 Para la arquitectura, los límites de confianza, las decisiones y las formas de refutar el diseño, consulta el **[Technical README](TECHNICAL_README.md)**.
 

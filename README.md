@@ -22,7 +22,7 @@ If the transfer went to a different address, the result should be `NOT_VERIFIED`
 
 Veridra is scoped to facts that can be tied to the selected chain evidence. A ledger result does not by itself establish who controlled a wallet, whether an invoice was legally satisfied, or whether goods or services were delivered. A claim can only be checked to the extent that the transaction data and the chosen evidence source support it.
 
-The Level 1 Solidity contract core and TypeScript RPC acquisition/publication library are implemented. The contracts compile with Solidity 0.8.24 using the repository's `via_ir` setting. 58 Foundry tests (`forge test`) exercise the adjudicator, registry, recent- and historical-inclusion verifiers, the root checkpoint, and both guarded deploy scripts; 53 Node.js tests (`npm test` in `offchain/`) exercise claim parsing, RPC evidence acquisition, proof construction and bounds, raw payment-fact extraction, portable receipt export/reverification, inclusion-client boundaries, and independent receipt verification. A minimal CLI (`node dist/cli.js verify <receiptId> ...` / `publish ...`) wraps the acquisition, publication, and independent-verification library, and has been run live against Monad testnet — see "Live on Monad testnet" below. See the [technical design and open decisions](TECHNICAL_README.md).
+The Level 1 Solidity contract core and TypeScript RPC acquisition/publication library are implemented. The contracts compile with Solidity 0.8.24 using the repository's `via_ir` setting. 58 Foundry tests (`forge test`) exercise the adjudicator, registry, recent- and historical-inclusion verifiers, the root checkpoint, and both guarded deploy scripts; 59 Node.js tests (`npm test` in `offchain/`) exercise claim parsing, RPC evidence acquisition, proof construction and bounds, raw payment-fact extraction, portable receipt export/reverification, inclusion-client boundaries, and independent receipt verification. A minimal CLI (`node dist/cli.js verify <receiptId> ...` / `publish ...`) wraps the acquisition, publication, and independent-verification library, and has been run live against Monad testnet — see "Live on Monad testnet" below. See the [technical design and open decisions](TECHNICAL_README.md).
 
 The first evidence path is deliberately scoped: Level 1 uses RPC-acquired evidence with explicit source attribution. Its receipt does not claim trustlessness. Later levels strengthen how the same evidence is authenticated, without changing what a payment claim means. The [architecture decision record](docs/ARCHITECTURE_FRACTURE.md) explains the progression and its limits.
 
@@ -152,14 +152,26 @@ immutable `checkpoint` pointer was read back on-chain and confirmed to equal
 the checkpoint's address. Live exercise: block `69042193` was checkpointed
 ([`tx 0x392e74d98b4a68e398c602eeea5b9080ecf6ddc775b8b0a6a7a754ca26bae707`](https://testnet.monadexplorer.com/tx/0x392e74d98b4a68e398c602eeea5b9080ecf6ddc775b8b0a6a7a754ca26bae707)),
 and `checkpointedHash(69042193)` read back the same hash the transaction's
-event emitted. No full historical inclusion proof has been run live yet —
-that needs an offchain-produced header/MPT proof for a block already past
-the `BLOCKHASH` window, which has not been exercised beyond the Foundry test
-vectors.
+event emitted.
+
+A full historical inclusion proof has since been run live, end to end. A
+1-wei self-transfer,
+[`0x0b343d385355dbc1d437c3a650e6a4ca59671e643a9e208c17903a2aa7e9b13a`](https://testnet.monadexplorer.com/tx/0x0b343d385355dbc1d437c3a650e6a4ca59671e643a9e208c17903a2aa7e9b13a)
+at block `69047007`, was checkpointed at 3 confirmations, then the flow
+waited until the block was 257 blocks old — past the 256-block `BLOCKHASH`
+window, confirmed by polling `cast block-number`. `acquireRecentInclusionProof`
+(proof acquisition does not depend on recency) built the header/MPT proof
+from `debug_getRawBlock`/`debug_getRawReceipts` at that point, and
+`verifyHistoricalInclusionOnchain` called the deployed
+`HistoricalInclusionVerifier`, which returned `true` and the library reported
+`RPC_REPORTED_HISTORICAL_INCLUSION_ACCEPTED` with the correctly rederived
+payment fact (sender/recipient the deployer address, amount 1 wei). This is
+the specific scenario `RecentInclusionVerifier` cannot handle — proving the
+historical path's reason to exist, not only its Foundry test vectors.
 
 ## Current evidence
 
-The product direction adapts PROOF's useful semantics—explicit claims, `PASS` / `FAIL` / `ABSTAIN`, and distinct overall verdicts—to EVM transaction evidence. Veridra is a new Solidity and TypeScript implementation, not a source-code port. Solidity compilation, TypeScript type checking, 58 Foundry tests, and 53 Node.js tests have been run and pass. The full Level 1 pipeline — RPC evidence acquisition, onchain publication, and independent verification — has also been run live against a real Monad testnet transaction and the deployed registry above, on both the `VERIFIED` and `NOT_VERIFIED` paths. Level 2 now has multiple live native-transfer round trips, including EIP-1559, and a paired correct/incorrect amount claim over one proof. All used the same public RPC; this does not independently authenticate the provider. Live ERC-20 and second-provider behavior remain untested, so Level 2 is incomplete. The code pin and source IDs are caller-maintained labels; they do not authenticate the RPC supplying bytecode, proof data, or `eth_call` results. Levels 3–7 (persistent-root history, prior payment expectations, merchant integration, additional transaction shapes, and the optional private receipt) remain unbuilt.
+The product direction adapts PROOF's useful semantics—explicit claims, `PASS` / `FAIL` / `ABSTAIN`, and distinct overall verdicts—to EVM transaction evidence. Veridra is a new Solidity and TypeScript implementation, not a source-code port. Solidity compilation, TypeScript type checking, 58 Foundry tests, and 59 Node.js tests have been run and pass. The full Level 1 pipeline — RPC evidence acquisition, onchain publication, and independent verification — has also been run live against a real Monad testnet transaction and the deployed registry above, on both the `VERIFIED` and `NOT_VERIFIED` paths. Level 2 now has multiple live native-transfer round trips, including EIP-1559, and a paired correct/incorrect amount claim over one proof. All used the same public RPC; this does not independently authenticate the provider. Live ERC-20 and second-provider behavior remain untested, so Level 2 is incomplete. The code pin and source IDs are caller-maintained labels; they do not authenticate the RPC supplying bytecode, proof data, or `eth_call` results. Levels 3–7 (persistent-root history, prior payment expectations, merchant integration, additional transaction shapes, and the optional private receipt) remain unbuilt.
 
 For architecture, threat boundaries, design choices, and falsifiers, see the **[Technical README](TECHNICAL_README.md)**.
 
