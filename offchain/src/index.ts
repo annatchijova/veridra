@@ -16,6 +16,12 @@ export { derivePaymentFactFromRawValues, RawPaymentFactError } from "./paymentFa
 export type { RawPaymentFact } from "./paymentFacts.js";
 export { verifyRecentInclusionOnchain, RecentInclusionVerificationError } from "./verifyInclusion.js";
 export type { OnchainRecentInclusionResult, VerifyRecentInclusionInput } from "./verifyInclusion.js";
+export { verifyHistoricalInclusionOnchain, HistoricalInclusionVerificationError } from "./verifyHistoricalInclusion.js";
+export type {
+  AcquiredHistoricalInclusionProof,
+  OnchainHistoricalInclusionResult,
+  VerifyHistoricalInclusionInput,
+} from "./verifyHistoricalInclusion.js";
 export {
   createPortableInclusionReceipt,
   parsePortableInclusionReceipt,
