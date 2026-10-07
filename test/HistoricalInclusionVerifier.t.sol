@@ -243,6 +243,7 @@ contract HistoricalInclusionVerifierTest is Test {
     function _checkpointAndExpireFromBlockhashWindow(uint256 blockNumber, bytes32 blockHash) private {
         vm.roll(blockNumber + 1);
         vm.setBlockhash(blockNumber, blockHash);
+        vm.roll(blockNumber + checkpoint.MIN_CONFIRMATION_DEPTH());
         checkpoint.checkpoint(blockNumber);
         vm.roll(blockNumber + checkpoint.BLOCKHASH_WINDOW() + 2);
     }

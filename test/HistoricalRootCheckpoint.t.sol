@@ -47,8 +47,18 @@ contract HistoricalRootCheckpointTest is Test {
 
     function test_revertsForABlockStillBeingMined() public {
         vm.roll(5);
-        vm.expectRevert(abi.encodeWithSelector(RecentBlockhashAnchor.BlockNotCompleted.selector, 5, 5));
+        vm.expectRevert(abi.encodeWithSelector(HistoricalRootCheckpoint.BlockNotYetFinal.selector, 5, 5));
         checkpoint.checkpoint(5);
+    }
+
+    function test_revertsForABlockBelowTheMinimumConfirmationDepth() public {
+        bytes32 hash = keccak256("block-1");
+        vm.roll(2);
+        vm.setBlockhash(1, hash);
+        // One block mined, but short of MIN_CONFIRMATION_DEPTH (3): anchor()
+        // alone would accept this; checkpoint() must not.
+        vm.expectRevert(abi.encodeWithSelector(HistoricalRootCheckpoint.BlockNotYetFinal.selector, 1, 2));
+        checkpoint.checkpoint(1);
     }
 
     function test_revertsForABlockOutsideTheWindow() public {
@@ -75,5 +85,6 @@ contract HistoricalRootCheckpointTest is Test {
     function _anchor(uint256 blockNumber, bytes32 blockHash) private {
         vm.roll(blockNumber + 1);
         vm.setBlockhash(blockNumber, blockHash);
+        vm.roll(blockNumber + checkpoint.MIN_CONFIRMATION_DEPTH());
     }
 }
