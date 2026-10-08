@@ -218,6 +218,24 @@ answer is delivered by the same unauthenticated RPC. Decided with Anna:
   with the missing property stated. Only rungs the build can produce are ever
   marked reached.
 
+## Design language revision, 2026-10-08 — "evidence desk"
+
+Anna asked for a UI that is "sober but striking, a mix of both" for people who look at it for 15 seconds. The
+confirmed forensic register (2026-10-07) is kept as the base and given a stronger point of view, rather than
+replaced by a flashier one.
+
+- **Kept:** colour reserved for verdict state; no gradients, no glow; monospace for hashes and addresses; the
+  per-check breakdown; every scope and assurance statement; text plus a glyph for every state, never colour alone.
+- **Changed:** a dark desk with a paper "case file" laid on it (light theme follows the system setting); Barlow
+  Condensed for display and the verdict stamp, IBM Plex Sans for text, both self-hosted (OFL 1.1) so no request
+  leaves for a third party; the verdict as a stamp, the assurance ladder as a rail beside the report.
+- **Added:** a one-line headline and sentence derived only from the tiers' own checks (`summary.ts`, never a
+  stronger result than the evidence: it uses the strongest decided tier and reports a conflict when tiers
+  disagree); three real-case examples taken from README.md (a true claim, a false claim on the same transaction,
+  and an old checkpointed block); a permalink; a print view; a one-read chain-head chip.
+- **Plan non-goals still honoured:** a link only *prefills* the form and never runs a check by itself (no
+  autosubmit); the chain chip reads once on load and after each check (no polling timer); no modal.
+
 ## Frontend-skills review (2026-10-07)
 
 Ran the plan above through `frontend-accessibility-by-construction`,
