@@ -6,6 +6,8 @@ Someone can show you a transaction hash or a convincing payment screenshot. That
 
 Veridra is a payment-claim verifier for Monad: compare a structured claim with evidence about a transaction and report what the evidence supports, what it contradicts, and what could not be established. The first Solidity contracts implement deterministic adjudication and an immutable receipt registry for one authorized publisher. RPC acquisition and transaction extraction remain offchain work; the contracts do not authenticate the publisher's RPC response.
 
+**Try it live:** [veridra-zeta.vercel.app](https://veridra-zeta.vercel.app). It is a read-only web page on Monad testnet (no wallet, nothing to sign). Paste a transaction hash, or choose one of three real testnet cases, and it shows which claimed facts the chain supports. Every result states the evidence level it rests on, and none of them is proof of wallet ownership, legal settlement or delivery. The source is in [`web/`](web/).
+
 ## A concrete example
 
 The example below is illustrative (a token payment Level 1 does not yet have live evidence for); a real example, run live against Monad testnet with a native MON transfer, is in "Live on Monad testnet" below.

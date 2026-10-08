@@ -6,6 +6,8 @@ Alguien puede mostrarte un hash de transacción o una captura de pago convincent
 
 Veridra verifica afirmaciones de pago en Monad: compara una afirmación estructurada con evidencia de una transacción y expresa qué respalda, qué contradice y qué no se pudo establecer. Los primeros contratos Solidity implementan adjudicación determinista y un registro inmutable de recibos para un publisher autorizado. La adquisición RPC y la extracción de transacciones siguen siendo trabajo offchain; los contratos no autentican la respuesta del RPC del publisher.
 
+**Probalo en vivo:** [veridra-zeta.vercel.app](https://veridra-zeta.vercel.app). Es una página web de solo lectura sobre Monad testnet (sin wallet, nada que firmar). Pegá un hash de transacción, o elegí uno de tres casos reales de testnet, y muestra qué hechos afirmados respalda la cadena. Cada resultado indica el nivel de evidencia en el que se apoya, y ninguno es prueba de la titularidad de una wallet, de una liquidación legal ni de una entrega. El código está en [`web/`](web/).
+
 ## Un ejemplo concreto
 
 El ejemplo es ilustrativo (un pago en token para el que el Nivel 1 todavía no tiene evidencia en vivo); un ejemplo real, corrido en vivo contra Monad testnet con una transferencia nativa de MON, está en "En vivo en Monad testnet" más abajo.
