@@ -53,6 +53,7 @@ export {
   ReceiptIntegrityError,
   ReceiptNotFoundError,
   UnsupportedReceiptVariantError,
+  reEvaluateClaim,
   verifyReceipt,
 } from "./verifyReceipt.js";
 export type { NamedCheck, VerifiedReceipt, VerifyReceiptInput } from "./verifyReceipt.js";

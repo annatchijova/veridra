@@ -90,7 +90,7 @@ type StoredEvidence = {
  * than trusting the contract's arithmetic. The field order and dominance
  * rule intentionally mirror src/PaymentAdjudicator.sol exactly.
  */
-function reEvaluateClaim(claim: StoredClaim, evidence: StoredEvidence, expectedChainId: bigint): {
+export function reEvaluateClaim(claim: StoredClaim, evidence: StoredEvidence, expectedChainId: bigint): {
   verdict: Verdict;
   checks: NamedCheck[];
 } {
