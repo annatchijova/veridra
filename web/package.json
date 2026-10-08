@@ -13,7 +13,10 @@
     "predev": "npm run build:offchain",
     "prebuild": "npm run build:offchain",
     "pretypecheck": "npm run build:offchain",
-    "pretest": "npm run build:offchain"
+    "pretest": "npm run build:offchain",
+    "live:tamper": "vite-node scripts/live-tamper-matrix.ts",
+    "live:hung-rpc": "node scripts/hung-rpc-bound.mjs",
+    "live:differential": "node scripts/extraction-differential.mjs"
   },
   "dependencies": {
     "@veridra/monad-rpc": "file:../offchain",
@@ -24,6 +27,7 @@
     "jsdom": "26.1.0",
     "typescript": "5.8.3",
     "vite": "6.4.4",
+    "vite-node": "6.0.0",
     "vitest": "5.0.3"
   }
 }
