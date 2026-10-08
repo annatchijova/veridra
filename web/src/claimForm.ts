@@ -72,6 +72,11 @@ export function validateField(spec: FieldSpec, value: string): string | null {
 export type ClaimForm = {
   element: HTMLFormElement;
   setBusy(busy: boolean): void;
+  /** Prefill from an example or a link. Never submits; clears any previous error. */
+  fill(values: Partial<ClaimInput>): void;
+  values(): ClaimInput;
+  /** Same path as pressing the button, so validation and the busy guard still apply. */
+  submit(): void;
 };
 
 export function createClaimForm(onSubmit: (input: ClaimInput) => void): ClaimForm {
@@ -114,8 +119,23 @@ export function createClaimForm(onSubmit: (input: ClaimInput) => void): ClaimFor
 
   const button = el("button", { type: "submit" }, "Check payment");
   const summary = el("p", { class: "form-summary", role: "alert" });
-  const form = el("form", { novalidate: true, "aria-label": "Payment claim" }, ...rows, summary, button);
-
+  const [hashRow, ...optionalRows] = rows;
+  // The hash is the one required thing; the buyer's claims are optional and start tucked away.
+  const details = el("details", { class: "claim-details" }, el("summary", {}, "Add what the buyer claims (optional)"), ...optionalRows);
+  const form = el(
+    "form",
+    { novalidate: true, "aria-label": "Payment claim" },
+    el("div", { class: "intake" }, hashRow!, button),
+    details,
+    summary,
+  );
+  const values = (): ClaimInput => ({
+    transactionHash: inputs.get("transactionHash")!.value,
+    sender: inputs.get("sender")!.value,
+    recipient: inputs.get("recipient")!.value,
+    asset: inputs.get("asset")!.value,
+    amountBaseUnits: inputs.get("amountBaseUnits")!.value,
+  });
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     // aria-disabled, not disabled: a disabled button drops keyboard focus to <body>.
@@ -133,17 +153,12 @@ export function createClaimForm(onSubmit: (input: ClaimInput) => void): ClaimFor
     }
     summary.textContent = invalidLabels.length === 0 ? "" : `Nothing was checked. Fix ${invalidLabels.length === 1 ? "this field" : "these fields"}: ${invalidLabels.join(", ")}.`;
     if (firstInvalid !== null) {
+      // A field inside the closed disclosure cannot take focus until it is open.
+      if (details.contains(firstInvalid)) details.open = true;
       firstInvalid.focus();
       return;
     }
-    const value = (name: FieldName) => inputs.get(name)!.value;
-    onSubmit({
-      transactionHash: value("transactionHash"),
-      sender: value("sender"),
-      recipient: value("recipient"),
-      asset: value("asset"),
-      amountBaseUnits: value("amountBaseUnits"),
-    });
+    onSubmit(values());
   });
 
   return {
@@ -152,6 +167,22 @@ export function createClaimForm(onSubmit: (input: ClaimInput) => void): ClaimFor
       if (busy) button.setAttribute("aria-disabled", "true");
       else button.removeAttribute("aria-disabled");
       button.textContent = busy ? "Checking…" : "Check payment";
+    },
+    fill(next) {
+      for (const spec of FIELDS) {
+        const value = next[spec.name];
+        if (value === undefined) continue;
+        inputs.get(spec.name)!.value = value;
+        showError(spec, null);
+      }
+      summary.textContent = "";
+      if (optionalRows.length > 0 && (["sender", "recipient", "asset", "amountBaseUnits"] as const).some((name) => inputs.get(name)!.value !== "")) {
+        details.open = true;
+      }
+    },
+    values,
+    submit() {
+      form.requestSubmit();
     },
   };
 }

@@ -49,7 +49,7 @@ const notCheckpointed: HistoricalDeps = {
 
 function setup(acquire: Acquire, recent: RecentDeps = notMined, historical: HistoricalDeps = notCheckpointed, reverify?: ReverifyDeps) {
   document.body.innerHTML = "<main></main>";
-  mountApp(document.querySelector("main")!, { acquire, recent, historical, ...(reverify ? { reverify } : {}) });
+  mountApp(document.querySelector("main")!, { acquire, recent, historical, chainHead: async () => 1_000n, search: "", ...(reverify ? { reverify } : {}) });
   const body = document.body;
   return {
     field: (label: RegExp) => getByLabelText(body, label) as HTMLInputElement,

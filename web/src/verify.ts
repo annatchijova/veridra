@@ -59,6 +59,8 @@ export type TierState =
       /** Only the RPC_ATTESTED tier has a confirmation policy; the recent tier is bounded by the BLOCKHASH window instead. */
       confirmations?: { observed: bigint; required: bigint };
       rawEvidence: unknown;
+      /** Known for the RPC_ATTESTED tier, whose evidence names its block. */
+      blockNumber?: bigint;
       /** The exact portable receipt this result was built from, ready to export. Only inclusion tiers have one. */
       serializedReceipt?: string;
       /** Plain lines describing the claim a re-verified receipt asserts, so the verdict is read relative to it. */
@@ -114,6 +116,7 @@ export async function checkRpcAttested(
       verdict: adjudication.verdict,
       checks: adjudication.checks,
       transactionHash: acquired.evidence.transactionHash,
+      blockNumber: acquired.evidence.blockNumber,
       confirmations: {
         observed: acquired.evidence.observedConfirmations,
         required: acquired.evidence.requiredConfirmations,

@@ -10,6 +10,12 @@ export type TierCard = {
 
 const RPC_HOST = new URL(MONAD_TESTNET_RPC_URL).host;
 
+export const ASSURANCE_LABEL: Record<Assurance, string> = {
+  RPC_ATTESTED: "read from the RPC, not independently authenticated",
+  RPC_REPORTED_RECENT_INCLUSION_ACCEPTED: "block inclusion accepted by the on-chain verifier",
+  RPC_REPORTED_HISTORICAL_INCLUSION_ACCEPTED: "inclusion accepted against a checkpoint",
+};
+
 const SCOPE: Record<Assurance, string> = {
   RPC_ATTESTED: `Relative to data read from ${RPC_HOST}. That RPC did not cryptographically sign it, and a ledger fact is not proof of wallet ownership, legal settlement or delivery.`,
   RPC_REPORTED_RECENT_INCLUSION_ACCEPTED: `The transaction's inclusion in a recent block was accepted by the pinned on-chain verifier, but the verifier's answer was itself delivered by ${RPC_HOST} and is not independently authenticated. A ledger fact is not proof of wallet ownership, legal settlement or delivery.`,
@@ -79,7 +85,7 @@ function renderResult(state: Extract<TierState, { status: "result" }>): Node[] {
       el(
         "p",
         {},
-        `Confirmations: ${state.confirmations.observed} observed, ${state.confirmations.required} required by this check. `,
+        `Confirmations: ${state.confirmations.observed.toLocaleString("en-US")} observed, ${state.confirmations.required.toLocaleString("en-US")} required by this check. `,
         state.verdict === "INSUFFICIENT_EVIDENCE"
           ? "Not enough yet, so nothing was checked against the claim."
           : "A block with few confirmations can still be reorganized.",
@@ -110,7 +116,7 @@ function renderResult(state: Extract<TierState, { status: "result" }>): Node[] {
   if (serialized !== undefined) {
     const button = el("button", { type: "button", class: "secondary" }, "Export receipt (JSON)");
     button.addEventListener("click", () => downloadReceipt(serialized, state.transactionHash, state.assurance));
-    nodes.push(el("p", {}, button), el("p", { class: "hint" }, EXPORT_NOTE[state.assurance]));
+    nodes.push(el("p", {}, button), el("p", { class: "hint export-note" }, EXPORT_NOTE[state.assurance]));
   }
   return nodes;
 }

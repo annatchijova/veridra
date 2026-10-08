@@ -23,3 +23,8 @@ export function replaceChildren(parent: Element, ...children: Child[]): void {
 export function stringifyEvidence(value: unknown): string {
   return JSON.stringify(value, (_key, v: unknown) => (typeof v === "bigint" ? v.toString(10) : v), 2);
 }
+
+/** Lets a long SNAKE_CASE name wrap at its underscores instead of mid-word. textContent is unchanged. */
+export function breakable(name: string): Node[] {
+  return name.split("_").flatMap((part, index, parts) => (index < parts.length - 1 ? [document.createTextNode(`${part}_`), document.createElement("wbr")] : [document.createTextNode(part)]));
+}

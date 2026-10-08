@@ -9,6 +9,7 @@ const CSP = [
   "style-src 'self'",
   "connect-src https://testnet-rpc.monad.xyz",
   "img-src 'self'",
+  "font-src 'self'",
   "base-uri 'none'",
   "form-action 'none'",
 ].join("; ");
