@@ -201,6 +201,23 @@ explicitly a stretch, not part of the core plan.
 
 No open decisions remain blocking UI-Level 1 implementation.
 
+## Decision recorded 2026-10-08 — tier 2 label and assurance ladder
+
+The UI-Level 2 text above names the tier-2 rung `RECENT_BLOCKHASH_PROOF`.
+`TECHNICAL_README.md` says the opposite about what is actually achieved: the
+current result "remains `RPC_REPORTED_RECENT_INCLUSION_ACCEPTED`, not
+authenticated `RECENT_BLOCKHASH` assurance", because the verifier's `eth_call`
+answer is delivered by the same unauthenticated RPC. Decided with Anna:
+
+- **Proposed and rejected:** label the tier-2 card `RECENT_BLOCKHASH_PROOF`, as
+  this plan first wrote. Rejected because the UI would assert an assurance the
+  project's own documentation says is not yet reached.
+- **Adopted:** the tier-2 card carries its real name,
+  `RPC_REPORTED_RECENT_INCLUSION_ACCEPTED`. The assurance ladder shows
+  `RECENT_BLOCKHASH_PROOF` and `PERSISTENT_ROOT_PROOF` as planned, not reached,
+  with the missing property stated. Only rungs the build can produce are ever
+  marked reached.
+
 ## Frontend-skills review (2026-10-07)
 
 Ran the plan above through `frontend-accessibility-by-construction`,
