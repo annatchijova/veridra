@@ -12,3 +12,4 @@ broadcast/
 node_modules/
 offchain/dist/
 web/dist/
+.vercel
