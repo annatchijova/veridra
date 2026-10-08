@@ -11,3 +11,4 @@ broadcast/
 # JavaScript tooling
 node_modules/
 offchain/dist/
+web/dist/

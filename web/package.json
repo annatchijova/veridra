@@ -1,0 +1,29 @@
+{
+  "name": "@veridra/web",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build:offchain": "npm --prefix ../offchain run build",
+    "predev": "npm run build:offchain",
+    "prebuild": "npm run build:offchain",
+    "pretypecheck": "npm run build:offchain",
+    "pretest": "npm run build:offchain"
+  },
+  "dependencies": {
+    "@veridra/monad-rpc": "file:../offchain",
+    "viem": "2.57.2"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "10.4.2",
+    "jsdom": "26.1.0",
+    "typescript": "5.8.3",
+    "vite": "6.4.4",
+    "vitest": "5.0.3"
+  }
+}
