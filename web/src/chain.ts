@@ -25,9 +25,16 @@ export const RECENT_INCLUSION_VERIFIER_PIN: { chainId: bigint; address: Address;
   runtimeCodeHash: "0xa4d1836d69eedbf3f90b5ef986e583b35153487d9cf06983fd90a8695fd0d80e",
 };
 
+/**
+ * Same 15 s bound the offchain library puts on its own fetches. viem's defaults (10 s timeout,
+ * 3 retries) let a hung RPC hold a "checking…" state for ~41 s per call, and a tier makes several
+ * sequential calls. No retries: the operator can retry, and a state must have one bound.
+ */
+export const RPC_TIMEOUT_MILLISECONDS = 15_000;
+
 export const publicClient = createPublicClient({
   chain: { ...monadTestnet, id: Number(MONAD_TESTNET_CHAIN_ID) },
-  transport: http(MONAD_TESTNET_RPC_URL),
+  transport: http(MONAD_TESTNET_RPC_URL, { timeout: RPC_TIMEOUT_MILLISECONDS, retryCount: 0 }),
 });
 
 /**

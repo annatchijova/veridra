@@ -8,6 +8,7 @@ import {
   checkHistoricalInclusion,
   checkRecentInclusion,
   checkRpcAttested,
+  tierDisagreement,
   type Acquire,
   type ClaimInput,
   type HistoricalDeps,
@@ -33,7 +34,8 @@ export function mountApp(main: HTMLElement, deps: AppDeps = {}): void {
   const revealed = [tier1.element, tier2.element, tier3.element, ladder.element];
   for (const element of revealed) element.hidden = true;
 
-  const results = el("div", { id: "results", "aria-live": "polite" }, tier1.element, tier2.element, tier3.element);
+  const notice = el("p", { class: "notice", id: "tier-notice" });
+  const results = el("div", { id: "results", "aria-live": "polite" }, notice, tier1.element, tier2.element, tier3.element);
 
   let currentRun = 0;
 
@@ -48,6 +50,12 @@ export function mountApp(main: HTMLElement, deps: AppDeps = {}): void {
     const render = () => {
       if (runId !== currentRun) return;
       ladder.update(states.one, states.two, states.three);
+      notice.textContent =
+        tierDisagreement([
+          { label: "tier 1", state: states.one },
+          { label: "tier 2", state: states.two },
+          { label: "tier 3", state: states.three },
+        ]) ?? "";
     };
 
     form.setBusy(true);
@@ -88,7 +96,7 @@ export function mountApp(main: HTMLElement, deps: AppDeps = {}): void {
     el(
       "p",
       {},
-      "Paste a transaction hash and whatever the buyer claims about it. Veridra reports which claimed facts the chain data supports. It reads only; it never asks for a wallet.",
+      "Paste a transaction hash and whatever the buyer claims about it. Veridra reports which claimed facts the chain data supports. It reads only; it never asks for a wallet. The transaction hash you enter is sent to the public Monad testnet RPC (testnet-rpc.monad.xyz).",
     ),
     form.element,
     results,

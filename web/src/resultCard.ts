@@ -24,9 +24,9 @@ const EXPORT_NOTE: Record<Assurance, string> = {
 };
 
 /** One evidence tier. Its slot exists from the start so the page never reflows as results land. */
-export function createTierCard(title: string, checkingText: string): TierCard {
+export function createTierCard(title: string, checkingText: string, headingLevel: 2 | 3 = 2): TierCard {
   const headingId = `tier-${title.replace(/\W+/g, "-").toLowerCase()}`;
-  const heading = el("h2", { id: headingId }, title);
+  const heading = el(headingLevel === 2 ? "h2" : "h3", { id: headingId }, title);
   const body = el("div", { class: "tier-body" });
   const element = el("section", { class: "tier", "aria-labelledby": headingId }, heading, body);
 

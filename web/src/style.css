@@ -25,6 +25,9 @@
 
 * { box-sizing: border-box; }
 
+/* Long unbroken tokens (assurance names, hashes) must wrap, not force horizontal scroll at 320px. */
+body { overflow-wrap: anywhere; }
+
 body {
   margin: 0;
   background: var(--bg);
@@ -75,7 +78,9 @@ button {
   border-radius: 2px;
   cursor: pointer;
 }
-button:disabled { opacity: 0.6; cursor: progress; }
+button[aria-disabled="true"] { opacity: 0.6; cursor: progress; }
+.form-summary { color: var(--bad); font-weight: 600; margin: 0 0 1rem; }
+.form-summary:empty { display: none; }
 :focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 
 .tier { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--rule); }
@@ -117,3 +122,6 @@ textarea {
 button.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--text); }
 .reverify { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--rule); }
 ul.mono { padding-left: 1.25rem; font-size: 0.8125rem; word-break: break-all; }
+
+.notice { border: 2px solid var(--bad); padding: 0.75rem; font-weight: 600; margin: 1.5rem 0 0; }
+.notice:empty { display: none; }

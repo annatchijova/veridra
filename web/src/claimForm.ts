@@ -113,17 +113,25 @@ export function createClaimForm(onSubmit: (input: ClaimInput) => void): ClaimFor
   });
 
   const button = el("button", { type: "submit" }, "Check payment");
-  const form = el("form", { novalidate: true, "aria-label": "Payment claim" }, ...rows, button);
+  const summary = el("p", { class: "form-summary", role: "alert" });
+  const form = el("form", { novalidate: true, "aria-label": "Payment claim" }, ...rows, summary, button);
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
+    // aria-disabled, not disabled: a disabled button drops keyboard focus to <body>.
+    if (button.getAttribute("aria-disabled") === "true") return;
     let firstInvalid: HTMLInputElement | null = null;
+    const invalidLabels: string[] = [];
     for (const spec of FIELDS) {
       const input = inputs.get(spec.name)!;
       const message = validateField(spec, input.value);
       showError(spec, message);
-      if (message !== null && firstInvalid === null) firstInvalid = input;
+      if (message !== null) {
+        invalidLabels.push(spec.label.replace(/ \(optional\)$/, ""));
+        if (firstInvalid === null) firstInvalid = input;
+      }
     }
+    summary.textContent = invalidLabels.length === 0 ? "" : `Nothing was checked. Fix ${invalidLabels.length === 1 ? "this field" : "these fields"}: ${invalidLabels.join(", ")}.`;
     if (firstInvalid !== null) {
       firstInvalid.focus();
       return;
@@ -141,7 +149,8 @@ export function createClaimForm(onSubmit: (input: ClaimInput) => void): ClaimFor
   return {
     element: form,
     setBusy(busy: boolean) {
-      button.disabled = busy;
+      if (busy) button.setAttribute("aria-disabled", "true");
+      else button.removeAttribute("aria-disabled");
       button.textContent = busy ? "Checking…" : "Check payment";
     },
   };

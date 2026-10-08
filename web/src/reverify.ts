@@ -4,7 +4,7 @@ import { MAX_RECEIPT_BYTES, reverifyReceipt, type ReverifyDeps } from "./verify.
 
 /** Flow 2: paste or choose a portable receipt and re-check it from scratch against the chain. */
 export function createReverifySection(deps?: ReverifyDeps): HTMLElement {
-  const card = createTierCard("Reverification result", "Checking… rebuilding the payment fact from the proof and asking the on-chain verifier.");
+  const card = createTierCard("Reverification result", "Checking… rebuilding the payment fact from the proof and asking the on-chain verifier.", 3);
   card.element.hidden = true;
 
   const textarea = el("textarea", {
@@ -31,13 +31,14 @@ export function createReverifySection(deps?: ReverifyDeps): HTMLElement {
   });
 
   button.addEventListener("click", async () => {
-    button.disabled = true;
+    if (button.getAttribute("aria-disabled") === "true") return;
+    button.setAttribute("aria-disabled", "true");
     card.element.hidden = false;
     card.update({ status: "checking" });
     try {
       card.update(await reverifyReceipt(textarea.value, deps));
     } finally {
-      button.disabled = false;
+      button.removeAttribute("aria-disabled");
     }
   });
 

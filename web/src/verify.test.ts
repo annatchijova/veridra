@@ -24,3 +24,13 @@ describe("token allowlist wiring", () => {
     expect(await allowlistFor(TOKEN)).toEqual([TOKEN]);
   });
 });
+
+describe("hostile input (integral review)", () => {
+  it("rejects an oversized paste by byte length before parsing or calling any verifier", async () => {
+    const { reverifyReceipt, MAX_RECEIPT_BYTES } = await import("./verify.js");
+    const verify = vi.fn();
+    const state = await reverifyReceipt("x".repeat(MAX_RECEIPT_BYTES + 1), { verifyRecent: verify, verifyHistorical: verify } as never);
+    expect(state.status).toBe("rejected");
+    expect(verify).not.toHaveBeenCalled();
+  });
+});

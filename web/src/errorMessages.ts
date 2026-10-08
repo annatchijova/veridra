@@ -2,8 +2,10 @@ import {
   HistoricalInclusionVerificationError,
   InclusionProofAcquisitionError,
   InsufficientEvidenceError,
+  MptProofInputError,
   PortableHistoricalReceiptError,
   PortableReceiptError,
+  RawPaymentFactError,
   RecentInclusionVerificationError,
 } from "@veridra/monad-rpc";
 import { toFunctionSelector } from "viem";
@@ -102,6 +104,14 @@ const RULES: readonly { pattern: RegExp; failure: TierFailure }[] = [
     pattern: /Onchain inclusion verifier did not affirm/,
     failure: REJECTED,
   },
+  {
+    // Deterministic size limits of the proof-based tiers: retrying can never help.
+    pattern: /exceeds (\d+ bytes|\d+ MB|\d+ KiB|its configured byte bound)|exceeds the entry bound/,
+    failure: {
+      kind: "unavailable",
+      message: "This transaction's data is larger than the proof-based checks are willing to verify, so they can't cover it. Retrying will not change that; the RPC_ATTESTED tier is unaffected.",
+    },
+  },
 ];
 
 const FALLBACK_UNAVAILABLE: TierFailure = {
@@ -124,6 +134,8 @@ function isLibraryError(error: unknown): boolean {
     || error instanceof HistoricalInclusionVerificationError
     || error instanceof PortableReceiptError
     || error instanceof PortableHistoricalReceiptError
+    || error instanceof MptProofInputError
+    || error instanceof RawPaymentFactError
   );
 }
 
@@ -195,25 +207,25 @@ const RECEIPT_EXPIRED: ReceiptFailure = {
 };
 
 /**
- * Same plain-language rule as tiers, for pasted receipts. A receipt whose contents do not
- * check out is `rejected`, never `unavailable` or a retryable `error`.
+ * Same plain-language rule as tiers, for pasted receipts. The receipt is the thing under test, so
+ * once it has been parsed and sent to the verifier, anything that is not a network or environment
+ * problem is a verdict on the receipt: `rejected`, never `unavailable` or a retryable `error`.
  */
 export function translateReceiptError(error: unknown): ReceiptFailure {
-  // The on-chain verifier refusing a receipt's own proof means the receipt is bad, not that evidence is
-  // missing or that a retry would help. Environment problems (wrong deployed code, wrong chain) stay errors.
-  if (
-    (error instanceof RecentInclusionVerificationError || error instanceof HistoricalInclusionVerificationError)
-    && !/runtime code hash does not match|no runtime bytecode|Could not read the pinned verifier|Public client/.test(error.message)
-  ) {
-    return REJECTED_PROOF;
-  }
+  const asTier = translateTierError(error);
+  // Network and environment problems stay retryable errors.
+  if (asTier.kind === "error" && asTier !== FALLBACK_ERROR) return asTier;
+
   if (error instanceof Error && isLibraryError(error)) {
     for (const rule of RECEIPT_RULES) {
       if (rule.pattern.test(error.message)) return rule.failure;
     }
+    return asTier === OUTSIDE_WINDOW || asTier === TOO_RECENT ? RECEIPT_EXPIRED : REJECTED_PROOF;
   }
-  const failure = translateTierError(error);
-  if (failure === OUTSIDE_WINDOW || failure === TOO_RECENT) return RECEIPT_EXPIRED;
-  if (failure === REJECTED || failure === NOT_CHECKPOINTED) return REJECTED_PROOF;
-  return failure;
+  if (asTier === OUTSIDE_WINDOW || asTier === TOO_RECENT) return RECEIPT_EXPIRED;
+  // A contract call that reverted for any reason the page has no sentence for is still the verifier
+  // refusing this receipt's proof (for example a malformed Merkle path).
+  if (error instanceof Error && /reverted/i.test(error.message)) return REJECTED_PROOF;
+  if (asTier === REJECTED || asTier === NOT_CHECKPOINTED) return REJECTED_PROOF;
+  return asTier;
 }

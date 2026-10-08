@@ -369,3 +369,16 @@ export async function reverifyReceipt(
     return { status: failure.kind, message: failure.message };
   }
 }
+
+/**
+ * Tiers that reached a real verdict (not INSUFFICIENT_EVIDENCE) should agree: they adjudicate the same
+ * claim over the same transaction. If they do not, the chain reorganized between calls or a provider
+ * answered inconsistently, and neither verdict should be relied on.
+ */
+export function tierDisagreement(tiers: readonly { label: string; state: TierState | null }[]): string | null {
+  const decided = tiers.flatMap(({ label, state }) =>
+    state !== null && state.status === "result" && state.verdict !== "INSUFFICIENT_EVIDENCE" ? [{ label, verdict: state.verdict }] : [],
+  );
+  if (new Set(decided.map((tier) => tier.verdict)).size <= 1) return null;
+  return `The evidence tiers disagree (${decided.map((tier) => `${tier.label}: ${tier.verdict}`).join("; ")}). Do not rely on either verdict. This can happen if the chain reorganized or a provider answered inconsistently; check again.`;
+}

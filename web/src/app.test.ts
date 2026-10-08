@@ -146,7 +146,7 @@ describe("paste hash → see result", () => {
     ui.submit();
     await waitFor(() => expect(ui.body.textContent).toMatch(/Try again/));
     expect(ui.field(/recipient/i).value).toBe(RECIPIENT);
-    await waitFor(() => expect((getByRole(ui.body, "button", { name: /check payment/i }) as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() => expect(getByRole(ui.body, "button", { name: /check payment/i }).getAttribute("aria-disabled")).toBeNull());
   });
 
   it("shows checking… while in flight and disables the button against duplicate submission", async () => {
@@ -159,7 +159,7 @@ describe("paste hash → see result", () => {
     fireEvent.change(ui.field(/transaction hash/i), { target: { value: HASH } });
     ui.submit();
     await waitFor(() => expect(ui.body.textContent).toMatch(/Checking… reading/));
-    expect((getByRole(ui.body, "button", { name: /checking/i }) as HTMLButtonElement).disabled).toBe(true);
+    expect(getByRole(ui.body, "button", { name: /checking/i }).getAttribute("aria-disabled")).toBe("true");
     release();
     await waitFor(() => expect(ui.body.textContent).toMatch(/Verdict: VERIFIED/));
   });
@@ -428,5 +428,156 @@ describe("receipt error translation, adversarial review of UI-Level 3", () => {
     const { translateReceiptError } = await import("./errorMessages.js");
     const failure = translateReceiptError(new RecentInclusionVerificationError("Verifier runtime code hash does not match the deployment pin"));
     expect(failure.kind).toBe("error");
+  });
+});
+
+describe("integral review regressions", () => {
+  it("keeps keyboard focus on the submit button while and after a check (never uses `disabled`)", async () => {
+    let release!: () => void;
+    const acquire = (() =>
+      new Promise((resolve) => {
+        release = () => resolve({ providerId: `0x${"05".repeat(32)}`, observedAt: 1n, evidence: evidence() });
+      })) as unknown as Acquire;
+    const ui = setup(acquire);
+    fireEvent.change(ui.field(/transaction hash/i), { target: { value: HASH } });
+    const button = getByRole(ui.body, "button", { name: /check payment/i }) as HTMLButtonElement;
+    button.focus();
+    fireEvent.click(button);
+    await waitFor(() => expect(button.getAttribute("aria-disabled")).toBe("true"));
+    expect(button.hasAttribute("disabled")).toBe(false);
+    expect(document.activeElement).toBe(button);
+    release();
+    await waitFor(() => expect(button.getAttribute("aria-disabled")).toBeNull());
+    expect(document.activeElement).toBe(button);
+  });
+
+  it("ignores a second submit while a check is in flight", async () => {
+    let release!: () => void;
+    const acquire = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ providerId: `0x${"05".repeat(32)}`, observedAt: 1n, evidence: evidence() });
+        }),
+    );
+    const ui = setup(acquire as unknown as Acquire);
+    fireEvent.change(ui.field(/transaction hash/i), { target: { value: HASH } });
+    ui.submit();
+    await waitFor(() => expect(acquire).toHaveBeenCalledTimes(1));
+    fireEvent.submit(document.querySelector("form[aria-label='Payment claim']")!);
+    fireEvent.submit(document.querySelector("form[aria-label='Payment claim']")!);
+    expect(acquire).toHaveBeenCalledTimes(1);
+    release();
+    await waitFor(() => expect(ui.body.textContent).toMatch(/Verdict: VERIFIED/));
+  });
+
+  it("announces which fields blocked a submit in one alert, and checks nothing", () => {
+    const acquire = vi.fn();
+    const ui = setup(acquire as unknown as Acquire);
+    fireEvent.change(ui.field(/transaction hash/i), { target: { value: HASH } });
+    fireEvent.change(ui.field(/sender/i), { target: { value: "nope" } });
+    fireEvent.change(ui.field(/amount/i), { target: { value: "1.5" } });
+    ui.submit();
+    const alert = getByRole(ui.body, "alert");
+    expect(alert.textContent).toMatch(/Nothing was checked/);
+    expect(alert.textContent).toMatch(/Sender/);
+    expect(alert.textContent).toMatch(/Amount in base units/);
+    expect(acquire).not.toHaveBeenCalled();
+    fireEvent.change(ui.field(/sender/i), { target: { value: "" } });
+    fireEvent.change(ui.field(/amount/i), { target: { value: "" } });
+    ui.submit();
+    expect(getByRole(ui.body, "alert", { hidden: true }).textContent).toBe("");
+  });
+
+  it("the reverification card is a level-3 heading under its level-2 section", () => {
+    const ui = setup(acquiring());
+    const section = getByRole(ui.body, "heading", { name: "Reverify a receipt", level: 2 });
+    const card = getByRole(ui.body, "heading", { name: "Reverification result", level: 3, hidden: true });
+    expect(section).toBeTruthy();
+    expect(card).toBeTruthy();
+  });
+});
+
+describe("receipt error translation, tampered proof structure (integral review F6)", () => {
+  it("a library structural mismatch and an unmapped contract revert are both rejections, not environment problems", async () => {
+    const { PortableHistoricalReceiptError } = await import("@veridra/monad-rpc");
+    const { translateReceiptError } = await import("./errorMessages.js");
+    const structural = translateReceiptError(new PortableHistoricalReceiptError("Transaction root does not match its first proof node"));
+    const unmappedRevert = translateReceiptError(
+      new Error('The contract function "verifyHistoricalInclusion" reverted with the following signature:\n0xdeadbeef'),
+    );
+    for (const failure of [structural, unmappedRevert]) {
+      expect(failure.kind).toBe("rejected");
+      expect(failure.message).not.toMatch(/try again|could not be read in a form/i);
+    }
+  });
+
+  it("network failures and a different deployed verifier stay retryable errors", async () => {
+    const { RecentInclusionVerificationError } = await import("@veridra/monad-rpc");
+    const { translateReceiptError } = await import("./errorMessages.js");
+    expect(translateReceiptError(Object.assign(new Error("x"), { name: "TimeoutError" })).kind).toBe("error");
+    expect(translateReceiptError(new RecentInclusionVerificationError("Verifier runtime code hash does not match the deployment pin")).kind).toBe("error");
+  });
+});
+
+describe("tier disagreement notice (integral review F7)", () => {
+  it("warns, in words, when two tiers reach opposite verdicts", async () => {
+    const { deps } = recentDeps(10n, async () => parsedReceipt("NOT_VERIFIED", rowsOf({ amount: "FAIL" })));
+    const ui = setup(acquiring(), deps);
+    await runCheck(ui);
+    await waitFor(() => expect(ui.body.textContent).toMatch(/The evidence tiers disagree/));
+    expect(ui.body.textContent).toMatch(/tier 1: VERIFIED; tier 2: NOT_VERIFIED/);
+  });
+
+  it("stays silent when tiers agree, and when one tier has only insufficient evidence", async () => {
+    const { deps } = recentDeps(10n, async () => parsedReceipt("VERIFIED", rowsOf()));
+    const agree = setup(acquiring(), deps);
+    await runCheck(agree);
+    await waitFor(() => expect(agree.body.textContent).toMatch(/RPC_REPORTED_RECENT_INCLUSION_ACCEPTED — reached/));
+    expect(agree.body.textContent).not.toMatch(/disagree/);
+
+    const insufficient = setup(acquiring({ observedConfirmations: 0n }), recentDeps(10n, async () => parsedReceipt("NOT_VERIFIED", rowsOf({ amount: "FAIL" }))).deps);
+    await runCheck(insufficient);
+    await waitFor(() => expect(insufficient.body.textContent).toMatch(/Verdict: NOT_VERIFIED/));
+    expect(insufficient.body.textContent).not.toMatch(/disagree/);
+  });
+});
+
+describe("hostile strings are rendered as text, never as DOM (integral review)", () => {
+  it("a markup payload in raw evidence, a claim summary line, or a failure message creates no elements", async () => {
+    const { createTierCard } = await import("./resultCard.js");
+    const payload = '<img src=x onerror="window.__pwned=1"><script>window.__pwned=1</script>';
+    const card = createTierCard("t", "checking");
+    document.body.innerHTML = "";
+    document.body.append(card.element);
+    card.update({
+      status: "result",
+      assurance: "RPC_REPORTED_HISTORICAL_INCLUSION_ACCEPTED",
+      verdict: "VERIFIED",
+      checks: [{ name: "transactionHash", status: "PASS" }] as never,
+      transactionHash: HASH as `0x${string}`,
+      rawEvidence: { note: payload },
+      claimSummary: [payload],
+    });
+    expect(document.querySelectorAll("img, script").length).toBe(0);
+    expect(card.element.textContent).toContain("<img src=x");
+    card.update({ status: "rejected", message: payload });
+    expect(document.querySelectorAll("img, script").length).toBe(0);
+    expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
+  });
+});
+
+describe("deterministic size limits are not retryable (integral review F10)", () => {
+  it("an over-limit transaction is a designed absence that says retrying will not help", async () => {
+    const { MptProofInputError } = await import("@veridra/monad-rpc");
+    const failure = translateTierError(new MptProofInputError("Entry 1 exceeds 8192 bytes"));
+    expect(failure.kind).toBe("unavailable");
+    expect(failure.message).toMatch(/Retrying will not change that/);
+    expect(failure.message).not.toMatch(/Try again|8192/);
+  });
+
+  it("in a receipt context the same limit is a rejection", async () => {
+    const { MptProofInputError } = await import("@veridra/monad-rpc");
+    const { translateReceiptError } = await import("./errorMessages.js");
+    expect(translateReceiptError(new MptProofInputError("Entry 1 exceeds 8192 bytes")).kind).toBe("rejected");
   });
 });
